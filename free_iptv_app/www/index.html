@@ -69,11 +69,6 @@
         <i class="fa-solid fa-moon text-sm"></i>
       </button>
 
-      <!-- IPTV Diagnostic Logs -->
-      <button onclick="openIptvLogsModal()" class="px-2.5 py-1 bg-amber-500/20 hover:bg-amber-500/30 text-amber-400 border border-amber-500/30 rounded-lg text-xs font-bold flex items-center gap-1.5 transition active:scale-95" title="Ver Logs IPTV">
-        <i class="fa-solid fa-terminal text-xs"></i> <span>Logs</span>
-      </button>
-
       <!-- Close App -->
       <button onclick="confirmExitApp()" class="w-7 h-7 bg-red-600/20 hover:bg-red-600 text-red-400 hover:text-white rounded-lg flex items-center justify-center transition active:scale-90" title="Cerrar aplicación">
         <i class="fa-solid fa-xmark text-sm font-bold"></i>
@@ -139,9 +134,6 @@
           <button onclick="playerManager.retryNow()" class="px-3.5 py-2 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl text-xs transition shadow-lg shadow-blue-500/25 active:scale-95 flex items-center gap-1.5">
             <i class="fa-solid fa-rotate-right"></i> Reintentar
           </button>
-          <button onclick="openIptvLogsModal()" class="px-3.5 py-2 bg-amber-600 hover:bg-amber-500 text-white font-bold rounded-xl text-xs transition shadow-lg shadow-amber-500/25 active:scale-95 flex items-center gap-1.5">
-            <i class="fa-solid fa-terminal"></i> Ver Logs
-          </button>
           <button onclick="playerManager.playNextChannel()" class="px-3.5 py-2 bg-gray-800 hover:bg-gray-700 text-gray-200 font-semibold rounded-xl text-xs transition border border-gray-700 active:scale-95 flex items-center gap-1.5">
             <i class="fa-solid fa-forward-step"></i> Siguiente
           </button>
@@ -173,10 +165,6 @@
 
           <!-- Actions Top-Right -->
           <div class="flex items-center gap-2">
-            <!-- IPTV Diagnostic Logs Button -->
-            <button onclick="openIptvLogsModal()" class="text-amber-400 hover:text-amber-300 active:scale-125 transition p-1.5 flex items-center gap-1 font-mono text-[11px] bg-amber-500/20 px-2 py-0.5 rounded-lg border border-amber-500/30" title="Ver Logs IPTV">
-              <i class="fa-solid fa-terminal text-xs"></i> <span>Logs</span>
-            </button>
             <button onclick="toggleCurrentPlayerFav()" class="text-white hover:text-yellow-400 active:scale-125 transition p-1.5" title="Favorito">
               <i id="btn-player-fav-icon" class="fa-regular fa-star text-base"></i>
             </button>
@@ -340,10 +328,6 @@
             <!-- Refresh current active mode -->
             <button onclick="refreshActiveModeList()" class="px-2.5 py-2 bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 border border-blue-500/30 rounded-xl text-xs font-bold transition flex items-center gap-1 active:scale-95" title="Actualizar">
               <i class="fa-solid fa-rotate-right text-xs"></i>
-            </button>
-            <!-- IPTV Diagnostic Logs Button -->
-            <button onclick="openIptvLogsModal()" class="px-2.5 py-2 bg-amber-500/20 hover:bg-amber-500/30 text-amber-400 border border-amber-500/30 rounded-xl text-xs font-bold transition flex items-center gap-1 active:scale-95" title="Ver Logs IPTV">
-              <i class="fa-solid fa-terminal text-xs"></i> <span>Logs</span>
             </button>
           </div>
 
@@ -912,9 +896,6 @@
   <div id="toast" class="fixed bottom-24 left-1/2 -translate-x-1/2 bg-gray-900/95 border border-gray-700 backdrop-blur-md text-white text-xs px-4 py-2.5 rounded-full shadow-2xl opacity-0 pointer-events-none transition-all duration-300 z-50 flex items-center gap-2">
   </div>
 
-  <!-- IPTV Diagnostic Logger (Loads FIRST to intercept all player & HLS events) -->
-  <script src="js/iptv-logger.js"></script>
-
   <!-- Native Capacitor Bridge Script (Critical for Native HTTP & CORS bypass) -->
   <script src="capacitor.js"></script>
 
@@ -933,7 +914,19 @@
   <script src="js/platform/MediaCompatibility.js"></script>
   <script src="js/platform/AudioTrackManager.js"></script>
   <script src="js/platform/ExternalPlayer.js"></script>
+  <script src="js/platform/ExoPlayerPlugin.js"></script>
   <script src="js/platform/PlaybackManager.js"></script>
+
+  <!-- ========================================================= -->
+  <!-- FASE 6: Android TV / Fire TV - Navegación DPAD y Foco     -->
+  <!-- ========================================================= -->
+  <script src="js/platform/TVNavigation.js"></script>
+
+  <!-- ========================================================= -->
+  <!-- FASE 7: Seguridad y Rendimiento                           -->
+  <!-- ========================================================= -->
+  <script src="js/platform/SecuritySanitizer.js"></script>
+  <script src="js/platform/MemoryManager.js"></script>
 
   <script src="js/player.js"></script>
   <script src="js/xtream.js"></script>

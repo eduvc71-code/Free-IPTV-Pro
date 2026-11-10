@@ -3,14 +3,31 @@ import os
 import re
 import json
 import logging
+import re as _re
 from aiohttp import web, ClientSession, ClientTimeout
 import aiohttp
 from iptv_checker.playlist import Playlist
 from iptv_checker.checker import IPTVChecker
 from iptv_checker.utils import download_playlist, read_playlist_urls, create_index_m3u, DEFAULT_HEADERS
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(message)s')
 logger = logging.getLogger("IPTVServer")
+
+# Patrones de credenciales que NUNCA deben escribirse en logs
+CREDENTIAL_PATTERNS = [
+    _re.compile(r'(password|pass|pwd)\s*[:=]\s*[^\s&]+', _re.IGNORECASE),
+    _re.compile(r'(username|user)\s*[:=]\s*[^\s&]+', _re.IGNORECASE),
+    _re.compile(r'(Authorization:\s*Basic\s+)[A-Za-z0-9\-._~+\/]+=*', _re.IGNORECASE),
+    _re.compile(r'(Bearer\s+)[A-Za-z0-9\-._~+\/]+=*', _re.IGNORECASE),
+]
+
+def sanitize_for_log(text):
+    """Redacta contraseñas, usuarios y tokens antes de escribir en logs."""
+    if not isinstance(text, str):
+        text = str(text)
+    for pat in CREDENTIAL_PATTERNS:
+        text = pat.sub(lambda m: m.group(1) + ': [REDACTADO]' if ':' in m.group(0)[:10] else '[REDACTADO]', text)
+    return text
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUTPUT_DIR = os.path.join(BASE_DIR, 'output')
@@ -196,8 +213,8 @@ async def stream_proxy_handler(request):
         await session.close()
         return response
     except Exception as e:
-        logger.error(f"Error en proxy de stream {url}: {e}")
-        return web.Response(status=502, text=f"Proxy error: {e}")
+        logger.error(f"Error en proxy de stream {sanitize_for_log(url)}: {sanitize_for_log(str(e))}")
+        return web.Response(status=502, text="Proxy error")
 
 
 def create_app():
