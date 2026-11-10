@@ -60,6 +60,37 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (mobAuto) mobAuto.checked = isAuto;
   if (tvAuto) tvAuto.checked = isAuto;
 
+  // FASE 6: Configurar handler del botón Atrás (Back) para Android TV / Fire TV
+  window.tvNavigation.onBack = () => {
+    const playerContainer = document.getElementById('player-container');
+    const isFullscreen = playerContainer && playerContainer.classList.contains('fullscreen-player');
+
+    // 1. Si está en pantalla completa ➡️ salir al menú SIN detener reproducción
+    if (isFullscreen && window.playerManager) {
+      window.playerManager.exitFullscreenMode();
+      return;
+    }
+
+    // 2. Si está en una categoría de TV (no home) ➡️ volver al selector de categorías/home
+    if (window.activeTab && window.activeTab !== 'home' && typeof window.switchTab === 'function') {
+      window.switchTab('home');
+      return;
+    }
+
+    // 3. Si está en pantalla principal ➡️ solicitar confirmación de salida
+    if (typeof window.confirmExitApp === 'function') {
+      window.confirmExitApp();
+    } else if (typeof navigator.app === 'object' && typeof navigator.app.exitApp === 'function') {
+      navigator.app.exitApp();
+    }
+  };
+
+  // FASE 7: Marcar contenedores como "scrolling" para que MemoryManager no limpie durante scroll activo
+  const origScrollHandler = window.initVirtualScrollListeners;
+  if (typeof origScrollHandler === 'function') {
+    // Se envuelve después de que se defina; se hace abajo en initVirtualScrollListeners
+  }
+
   // Load countries catalog for Mode A
   await loadAmericasCountries();
 
@@ -527,6 +558,18 @@ function createChannelCardElement(ch, numberIndex, isTvLayout = false) {
 function initVirtualScrollListeners() {
   const handleScroll = (el) => {
     if (!el) return;
+
+    // FASE 7: Marcar como scrolling para evitar limpieza de DOM durante interacción
+    if (window.memoryManager) {
+      window.memoryManager.markScrolling(el.id || 'container', true);
+      clearTimeout(el._scrollEndTimer);
+      el._scrollEndTimer = setTimeout(() => {
+        if (window.memoryManager) {
+          window.memoryManager.markScrolling(el.id || 'container', false);
+        }
+      }, 150);
+    }
+
     if (el.scrollHeight - el.scrollTop - el.clientHeight < 180) {
       if (displayedChannelCount < currentRenderedList.length) {
         renderNextChannelBatch();

@@ -209,7 +209,20 @@ class VideoPlayerManager {
     const isMP4 = /\.mp4(?:$|[?#])/i.test(streamUrl);
     const isTS = /\.ts(?:$|[?#])/i.test(streamUrl);
 
-    // FASE 2: el usuario/puente puede forzar reproductor externo (botón "Abrir en VLC")
+    // FASE 3: Usar ExoPlayer nativo (Media3 + FFmpeg) para AC-3/E-AC-3/MKV sin salir de la app
+    const isAudioSensitive = isVodExt || isTS || /\.mkv|\.avi|\.wmv|\.flv/i.test(streamUrl);
+    if (isAudioSensitive && window.exoPlayerPlugin && window.exoPlayerPlugin.available) {
+      this.showLoading(false);
+      try {
+        window.exoPlayerPlugin.play(streamUrl, channel.name || 'Contenido');
+        this.resetControlsTimeout();
+        return;
+      } catch (e) {
+        console.warn('[IPTV] ExoPlayer falló, intentando reproducción web:', e.message);
+      }
+    }
+
+    // Fallback legacy: forzar reproductor externo solo si ExoPlayer no está disponible
     if (channel.forceExternal && typeof openMediaInExternalPlayer === 'function') {
       this.showLoading(false);
       openMediaInExternalPlayer(streamUrl, channel.name || 'Contenido');
@@ -329,6 +342,15 @@ class VideoPlayerManager {
               // por WebView, tras 2 recuperaciones derivar a reproductor externo.
               this._codecFailCount++;
               if (this._codecFailCount >= 2 && this.isVodOrCodecSensitive()) {
+                if (window.exoPlayerPlugin && window.exoPlayerPlugin.available) {
+                  try {
+                    this.showLoading(false);
+                    window.exoPlayerPlugin.play(this.currentChannel.url, this.currentChannel.name || 'Contenido');
+                    return;
+                  } catch (e) {
+                    console.warn('[IPTV] ExoPlayer no disponible para códec:', e.message);
+                  }
+                }
                 this._redirectToExternalPlayer('⚠️ Códec de audio no compatible. Abriendo en VLC / MX Player...');
                 return;
               }
@@ -364,11 +386,19 @@ class VideoPlayerManager {
       }
 
       // Formatos NO compatibles con HTML5/WebView (MKV, AVI, WMV, FLV...):
-      // casi siempre llevan audio Dolby/E-AC3 que WebView no decodifica.
-      // Se envían directo al reproductor externo (VLC / MX Player / Player iOS).
+      // Se reproducen internamente con ExoPlayer (Media3 + FFmpeg Audio) que soporta AC-3/E-AC-3.
       const webCompatible = /\.(mp4|m4v|webm|mov|ts|m2ts|mpg|mpeg)(?:$|[?#])/i.test(streamUrl) || isM3U8;
       if (isVodExt && !webCompatible) {
         this.showLoading(false);
+        if (window.exoPlayerPlugin && window.exoPlayerPlugin.available) {
+          try {
+            window.exoPlayerPlugin.play(streamUrl, channel.name || 'Película');
+            this.resetControlsTimeout();
+            return;
+          } catch (e) {
+            console.warn('[IPTV] ExoPlayer no disponible para este formato:', e.message);
+          }
+        }
         if (typeof openMediaInExternalPlayer === 'function') {
           showToast('🎬 Formato no compatible internamente. Abriendo en VLC / MX Player...');
           openMediaInExternalPlayer(streamUrl, channel.name || 'Película');
@@ -396,6 +426,15 @@ class VideoPlayerManager {
         // ofrecer automáticamente el reproductor externo para VOD/Series
         const errName = error && error.name ? error.name : '';
         const isType = channel && (channel.type === 'vod' || channel.type === 'episode' || channel.type === 'series');
+        if ((errName === 'NotSupportedError' || isType) && window.exoPlayerPlugin && window.exoPlayerPlugin.available) {
+          try {
+            showToast('🔊 Usando ExoPlayer nativo (AC-3/Dolby)...');
+            window.exoPlayerPlugin.play(streamUrl, channel?.name || 'Contenido');
+            return;
+          } catch (e) {
+            console.warn('[IPTV] ExoPlayer no disponible:', e.message);
+          }
+        }
         if ((errName === 'NotSupportedError' || isType) && typeof openMediaInExternalPlayer === 'function') {
           showToast('🔊 Sin soporte interno (códec/audio). Abriendo en reproductor externo...');
           openMediaInExternalPlayer(streamUrl, channel?.name || 'Contenido');
@@ -405,11 +444,20 @@ class VideoPlayerManager {
       });
 
       // Timeout de seguridad: si en 15s no arrancó ni metadata ni playing,
-      // intentar recuperación externa (evita "pantalla negra" en películas)
+      // intentar recuperación con ExoPlayer nativo (evita "pantalla negra" en películas)
       clearTimeout(this.vodStartTimer);
       this.vodStartTimer = setTimeout(() => {
         if (this.currentChannel === channel && this.video.readyState < 2) {
-          console.warn('[IPTV] Arranque agotado para contenido directo; derivando a reproductor externo.');
+          console.warn('[IPTV] Arranque agotado para contenido directo; probando ExoPlayer nativo.');
+          if (window.exoPlayerPlugin && window.exoPlayerPlugin.available) {
+            try {
+              this.showLoading(false);
+              window.exoPlayerPlugin.play(streamUrl, channel?.name || 'Contenido');
+              return;
+            } catch (e) {
+              console.warn('[IPTV] ExoPlayer falló en watchdog:', e.message);
+            }
+          }
           if (typeof openMediaInExternalPlayer === 'function') {
             this.showLoading(false);
             openMediaInExternalPlayer(streamUrl, channel?.name || 'Contenido');
@@ -620,8 +668,9 @@ class VideoPlayerManager {
     const icon = document.getElementById('btn-fs-icon');
     if (icon) icon.className = 'fa-solid fa-compress text-base';
 
+    // El botón minimizar NO se muestra durante la reproducción (oculto siempre)
     const minBtn = document.getElementById('btn-player-minimize');
-    if (minBtn) minBtn.classList.remove('hidden');
+    if (minBtn) minBtn.classList.add('hidden');
 
     try {
       if (this.container.requestFullscreen) {
@@ -637,6 +686,11 @@ class VideoPlayerManager {
         if (p && typeof p.catch === 'function') p.catch(() => {});
       }
     } catch (e) {}
+
+    // FASE 6: Notificar a TVNavigation que estamos en pantalla completa
+    if (window.tvNavigation && typeof window.tvNavigation.setInFullscreen === 'function') {
+      window.tvNavigation.setInFullscreen(true);
+    }
 
     this.showToast("Pantalla Completa 🖥️");
     this.resetControlsTimeout();
@@ -671,6 +725,11 @@ class VideoPlayerManager {
         if (p && typeof p.catch === 'function') p.catch(() => {});
       }
     } catch (e) {}
+
+    // FASE 6: Notificar a TVNavigation que salimos de pantalla completa
+    if (window.tvNavigation && typeof window.tvNavigation.setInFullscreen === 'function') {
+      window.tvNavigation.setInFullscreen(false);
+    }
 
     this.showToast("Vista normal");
     this.resetControlsTimeout();
@@ -1118,6 +1177,16 @@ class VideoPlayerManager {
       alert("No hay ningún contenido reproduciéndose actualmente.");
       return;
     }
+    // Prioridad 1: ExoPlayer nativo (dentro de la app, sin salir)
+    if (window.exoPlayerPlugin && window.exoPlayerPlugin.available) {
+      try {
+        window.exoPlayerPlugin.play(this.currentChannel.url, this.currentChannel.name || 'Contenido IPTV');
+        return;
+      } catch (e) {
+        console.warn('[IPTV] ExoPlayer falló en openCurrentInExternalPlayer:', e.message);
+      }
+    }
+    // Prioridad 2: reproductor externo legacy
     if (typeof openMediaInExternalPlayer === 'function') {
       openMediaInExternalPlayer(this.currentChannel.url, this.currentChannel.name || 'Contenido IPTV');
     }
@@ -1149,6 +1218,16 @@ class VideoPlayerManager {
     if (msg && typeof showToast === 'function') {
       showToast(msg);
     }
+    // Prioridad 1: ExoPlayer nativo (dentro de la app)
+    if (this.currentChannel && this.currentChannel.url && window.exoPlayerPlugin && window.exoPlayerPlugin.available) {
+      try {
+        window.exoPlayerPlugin.play(this.currentChannel.url, this.currentChannel.name || 'Contenido');
+        return;
+      } catch (e) {
+        console.warn('[IPTV] ExoPlayer falló en _redirectToExternalPlayer:', e.message);
+      }
+    }
+    // Prioridad 2: reproductor externo legacy
     if (this.currentChannel && this.currentChannel.url && typeof openMediaInExternalPlayer === 'function') {
       openMediaInExternalPlayer(this.currentChannel.url, this.currentChannel.name || 'Contenido');
     }

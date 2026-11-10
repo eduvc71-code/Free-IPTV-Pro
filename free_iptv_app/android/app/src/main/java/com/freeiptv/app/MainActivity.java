@@ -10,12 +10,15 @@ import androidx.core.view.WindowInsetsControllerCompat;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import com.getcapacitor.BridgeActivity;
+import com.freeiptv.app.plugins.ExoPlayerPlugin;
 
 public class MainActivity extends BridgeActivity {
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        // Registrar plugin nativo ExoPlayer (Media3 + FFmpeg Audio para AC-3/E-AC-3)
+        this.registerPlugin(ExoPlayerPlugin.class);
         hideSystemUI();
         configureWebView();
     }
