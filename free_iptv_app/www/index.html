@@ -925,6 +925,16 @@
       document.write('<script src="https://cdn.jsdelivr.net/npm/hls.js@latest"><\/script>');
     }
   </script>
+  <!-- ========================================================= -->
+  <!-- FASE 3: Nueva Arquitectura Multiplataforma                -->
+  <!-- Orden de carga importa: cada módulo depende del anterior  -->
+  <!-- ========================================================= -->
+  <script src="js/platform/PlatformDetector.js"></script>
+  <script src="js/platform/MediaCompatibility.js"></script>
+  <script src="js/platform/AudioTrackManager.js"></script>
+  <script src="js/platform/ExternalPlayer.js"></script>
+  <script src="js/platform/PlaybackManager.js"></script>
+
   <script src="js/player.js"></script>
   <script src="js/xtream.js"></script>
   <script src="js/app.js"></script>
