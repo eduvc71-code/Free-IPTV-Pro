@@ -1,0 +1,446 @@
+/* =========================================================
+   Free-IPTV Pro - Ultra-Modern Dark Theme (Glassmorphism 2.0)
+   Landscape 3-Column TV & Responsive Mobile Layout
+   ========================================================= */
+:root {
+  --bg-dark: #06080d;
+  --bg-sidebar: #0a0e17;
+  --bg-card: #101624;
+  --bg-card-hover: #162033;
+  --bg-glass: rgba(10, 14, 23, 0.92);
+  --primary: #3b82f6;
+  --primary-glow: rgba(59, 130, 246, 0.4);
+  --accent-gold: #f59e0b;
+  --accent-emerald: #10b981;
+  --text-main: #f9fafb;
+  --text-muted: #94a3b8;
+  --text-dim: #64748b;
+  --border-color: rgba(255, 255, 255, 0.08);
+  --border-glow: rgba(59, 130, 246, 0.45);
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+* {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background-color: var(--bg-dark);
+  color: var(--text-main);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  height: 100vh;
+  height: 100dvh;
+  width: 100vw;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Glassmorphism Navigation */
+.glass-header {
+  background: var(--bg-glass);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.glass-nav {
+  background: var(--bg-glass);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-top: 1px solid var(--border-color);
+  padding-top: 8px;
+  /* Lifted navigation bar above Android navigation bar */
+  padding-bottom: max(26px, calc(16px + env(safe-area-inset-bottom, 0px)));
+  min-height: 72px;
+}
+
+/* Channel Card & Modern Transitions */
+.channel-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  transition: all 0.15s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.channel-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 3px;
+  height: 100%;
+  background: transparent;
+  transition: background 0.15s;
+}
+
+.channel-card:active {
+  transform: scale(0.98);
+  background: var(--bg-card-hover);
+}
+
+.channel-card.active {
+  border-color: var(--primary);
+  background: linear-gradient(90deg, rgba(59, 130, 246, 0.18) 0%, rgba(16, 22, 36, 0.95) 100%);
+  box-shadow: 0 4px 20px -2px var(--primary-glow);
+}
+
+.channel-card.active::before {
+  background: var(--primary);
+}
+
+/* Equalizer Bars Animation */
+.equalizer-wave {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 13px;
+  padding: 0 2px;
+}
+
+.equalizer-bar {
+  width: 2.5px;
+  background: #38bdf8;
+  border-radius: 2px;
+  animation: eqPulse 0.9s ease-in-out infinite alternate;
+}
+.equalizer-bar:nth-child(1) { height: 40%; animation-delay: 0.1s; }
+.equalizer-bar:nth-child(2) { height: 95%; animation-delay: 0.3s; }
+.equalizer-bar:nth-child(3) { height: 60%; animation-delay: 0.2s; }
+.equalizer-bar:nth-child(4) { height: 80%; animation-delay: 0.4s; }
+
+@keyframes eqPulse {
+  0% { height: 25%; opacity: 0.6; }
+  100% { height: 100%; opacity: 1; }
+}
+
+/* Gesture HUD on Video Player */
+.gesture-hud {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: rgba(0, 0, 0, 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  padding: 14px 22px;
+  border-radius: 18px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  pointer-events: none;
+  opacity: 0;
+  transform: translate(-50%, -50%) scale(0.9);
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  z-index: 60;
+}
+
+.gesture-hud.show {
+  opacity: 1;
+  transform: translate(-50%, -50%) scale(1);
+}
+
+.gesture-bar-container {
+  width: 110px;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.gesture-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #3b82f6, #60a5fa);
+  width: 50%;
+  transition: width 0.08s linear;
+  border-radius: 3px;
+}
+
+/* Video Player Controls Overlay with Safe Area Inset Support */
+.player-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to bottom, rgba(0,0,0,0.85) 0%, transparent 35%, transparent 60%, rgba(0,0,0,0.92) 100%);
+  transition: opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  opacity: 1;
+  /* Protect against Android status bar & camera notch overlap */
+  padding-top: max(28px, env(safe-area-inset-top, 0px)) !important;
+}
+
+.player-overlay.hidden-controls {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Immersive Glitch-Free Fullscreen Player */
+#player-container.fullscreen-player {
+  position: fixed !important;
+  inset: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  height: 100dvh !important;
+  z-index: 99999 !important;
+  background: #000 !important;
+  border-radius: 0 !important;
+  aspect-ratio: auto !important;
+}
+
+#player-container.fullscreen-player .player-overlay {
+  padding-top: max(20px, env(safe-area-inset-top, 0px)) !important;
+  padding-left: max(20px, env(safe-area-inset-left, 0px)) !important;
+  padding-right: max(20px, env(safe-area-inset-right, 0px)) !important;
+  padding-bottom: max(20px, env(safe-area-inset-bottom, 0px)) !important;
+}
+
+body.in-fullscreen {
+  overflow: hidden !important;
+}
+
+/* Modal Bottom Sheets */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  z-index: 80;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s ease;
+}
+
+.modal-overlay.show {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.modal-sheet {
+  background: #0e1320;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 24px 24px 0 0;
+  width: 100%;
+  transform: translateY(100%);
+  transition: transform 0.28s cubic-bezier(0.33, 1, 0.68, 1);
+  box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.6);
+  padding-bottom: max(28px, env(safe-area-inset-bottom, 28px)) !important;
+}
+
+.modal-overlay.show .modal-sheet {
+  transform: translateY(0);
+}
+
+/* Custom Input Fields */
+.custom-input {
+  width: 100%;
+  background: #090d16;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #fff;
+  border-radius: 12px;
+  padding: 10px 14px;
+  font-size: 13px;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.custom-input:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.25);
+}
+
+/* Live Badge */
+.badge-live {
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+  color: white;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  padding: 2px 6px;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.badge-live::before {
+  content: '';
+  width: 5px;
+  height: 5px;
+  background: white;
+  border-radius: 50%;
+  animation: pingDot 1.4s infinite;
+}
+
+@keyframes pingDot {
+  0% { transform: scale(0.8); opacity: 0.8; }
+  50% { transform: scale(1.3); opacity: 1; }
+  100% { transform: scale(0.8); opacity: 0.8; }
+}
+
+.badge-quality {
+  background: rgba(59, 130, 246, 0.25);
+  border: 1px solid rgba(59, 130, 246, 0.5);
+  color: #93c5fd;
+  font-size: 9px;
+  font-weight: bold;
+  padding: 1px 5px;
+  border-radius: 4px;
+}
+
+/* =========================================================
+   LANDSCAPE & ANDROID TV 3-COLUMN LAYOUT
+   (Matching Reference IPTV Stream Player Screenshot)
+   ========================================================= */
+@media (min-width: 760px) and (orientation: landscape), (min-width: 1024px) {
+  body {
+    flex-direction: column !important;
+  }
+
+  /* Top Global App Header for TV */
+  #tv-global-header {
+    display: flex !important;
+    height: 48px;
+    background: #070a12;
+    border-bottom: 1px solid var(--border-color);
+    padding: 0 16px;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+    z-index: 50;
+  }
+
+  /* Main 3-Column Split Viewport */
+  #main-viewport-container {
+    display: flex !important;
+    flex-direction: row !important;
+    flex: 1 !important;
+    height: calc(100vh - 48px) !important;
+    height: calc(100dvh - 48px) !important;
+    overflow: hidden !important;
+  }
+
+  /* Column 1: Categories List (~22%) */
+  #tv-col-categories {
+    width: 22% !important;
+    min-width: 210px !important;
+    max-width: 280px !important;
+    background: #090d16 !important;
+    border-right: 1px solid var(--border-color) !important;
+    display: flex !important;
+    flex-direction: column !important;
+    height: 100% !important;
+  }
+
+  /* Column 2: Channels List (~30%) */
+  #tv-col-channels {
+    width: 30% !important;
+    min-width: 270px !important;
+    max-width: 380px !important;
+    background: #0d121e !important;
+    border-right: 1px solid var(--border-color) !important;
+    display: flex !important;
+    flex-direction: column !important;
+    height: 100% !important;
+  }
+
+  /* Column 3: Live Player + Details (~48%) */
+  #tv-col-player {
+    flex: 1 !important;
+    background: #07090e !important;
+    display: flex !important;
+    flex-direction: column !important;
+    height: 100% !important;
+    position: relative !important;
+    padding: 12px !important;
+  }
+
+  #player-container:not(.fullscreen-player) {
+    width: 100% !important;
+    max-height: 64% !important;
+    aspect-ratio: 16/9 !important;
+    border-radius: 16px !important;
+    border: 1px solid rgba(255, 255, 255, 0.12) !important;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.7) !important;
+  }
+
+  /* Hide bottom mobile bar in TV landscape */
+  .glass-nav {
+    display: none !important;
+  }
+}
+
+/* Category item styling for TV Column */
+.tv-cat-item {
+  padding: 10px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-radius: 8px;
+  margin: 2px 8px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  font-size: 12px;
+  font-weight: 600;
+  color: #94a3b8;
+}
+
+.tv-cat-item:hover, .tv-cat-item:focus {
+  background: rgba(255, 255, 255, 0.06);
+  color: #f1f5f9;
+}
+
+.tv-cat-item.active {
+  background: rgba(59, 130, 246, 0.2);
+  color: #60a5fa;
+  border-left: 3px solid #3b82f6;
+}
+
+/* Remote Control (D-Pad) Focus Styles for Android TV */
+*:focus-visible,
+.channel-card:focus,
+.channel-card.focused,
+.tv-cat-item:focus,
+.category-pill:focus,
+.nav-btn:focus,
+button:focus {
+  outline: 2.5px solid #3b82f6 !important;
+  outline-offset: 1px !important;
+  box-shadow: 0 0 14px rgba(59, 130, 246, 0.7) !important;
+  z-index: 40 !important;
+}
+
+/* Screen Lock Overlay */
+.screen-lock-shield {
+  position: absolute;
+  inset: 0;
+  background: rgba(0,0,0,0.3);
+  z-index: 55;
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-end;
+  padding: 16px;
+}
+
+.btn-lock-toggle {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: rgba(0,0,0,0.7);
+  border: 1px solid rgba(255,255,255,0.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  backdrop-filter: blur(8px);
+}

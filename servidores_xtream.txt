@@ -1,0 +1,18 @@
+# ==============================================================================
+# ARCHIVO DE SERVIDORES Y CUENTAS XTREAM CODES
+# Pega aquí una URL o cuenta por línea. Formatos soportados:
+#
+# 1. URL M3U completa:
+#    http://mallorca.plus:80/get.php?username=Jose1122mader&password=vPHZJF29Qb&type=m3u_plus
+#
+# 2. URL de API:
+#    http://mallorca.plus:80/player_api.php?username=Jose1122mader&password=vPHZJF29Qb
+#
+# 3. URL de canal directo:
+#    http://mallorca.plus:80/live/Jose1122mader/vPHZJF29Qb/1234.ts
+#
+# 4. Formato plano (host:puerto:usuario:contraseña):
+#    mallorca.plus:80:Jose1122mader:vPHZJF29Qb
+# ==============================================================================
+
+http://mallorca.plus:80/get.php?username=Jose1122mader&password=vPHZJF29Qb&type=m3u_plus
