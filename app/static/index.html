@@ -1,0 +1,626 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>World IPTV - Reproductor y Verificador de Canales</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- HLS.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #111827;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #374151;
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #4B5563;
+        }
+        .channel-active {
+            border-color: #3B82F6;
+            background-color: rgba(59, 130, 246, 0.15);
+        }
+    </style>
+</head>
+<body class="bg-gray-950 text-gray-100 flex flex-col h-screen overflow-hidden select-none font-sans">
+
+    <!-- Top Navigation Bar -->
+    <header class="bg-gray-900 border-b border-gray-800 px-5 py-3 flex items-center justify-between shadow-md z-10 flex-shrink-0">
+        <div class="flex items-center space-x-3">
+            <div class="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-blue-500/20">
+                <i class="fa-solid fa-tv text-lg"></i>
+            </div>
+            <div>
+                <h1 class="text-lg font-bold tracking-tight text-white flex items-center gap-2">
+                    WORLD IPTV <span class="text-xs bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded-full border border-blue-500/30">Player & Checker</span>
+                </h1>
+                <p class="text-xs text-gray-400">Edición América & Xtream Codes</p>
+            </div>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="flex items-center space-x-2">
+            <button onclick="openModal('modal-americas')" class="px-3.5 py-1.5 text-xs font-semibold bg-gray-800 hover:bg-gray-700 text-gray-200 rounded-lg border border-gray-700 transition flex items-center gap-2 shadow-sm">
+                <i class="fa-solid fa-earth-americas text-blue-400"></i> Países de América
+            </button>
+            <button onclick="openModal('modal-xtream')" class="px-3.5 py-1.5 text-xs font-semibold bg-gray-800 hover:bg-gray-700 text-gray-200 rounded-lg border border-gray-700 transition flex items-center gap-2 shadow-sm">
+                <i class="fa-solid fa-key text-yellow-400"></i> Xtream Codes
+            </button>
+            <button onclick="openModal('modal-url')" class="px-3.5 py-1.5 text-xs font-semibold bg-gray-800 hover:bg-gray-700 text-gray-200 rounded-lg border border-gray-700 transition flex items-center gap-2 shadow-sm">
+                <i class="fa-solid fa-link text-emerald-400"></i> URL Externa
+            </button>
+            <button onclick="openModal('modal-saved')" class="px-3.5 py-1.5 text-xs font-semibold bg-gray-800 hover:bg-gray-700 text-gray-200 rounded-lg border border-gray-700 transition flex items-center gap-2 shadow-sm">
+                <i class="fa-solid fa-folder-open text-purple-400"></i> Listas Guardadas
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Workspace (Player + Channel List) -->
+    <div class="flex flex-1 overflow-hidden">
+        
+        <!-- Video Player Section (Left / Center) -->
+        <div class="flex-1 flex flex-col bg-black relative">
+            <div class="relative flex-1 flex items-center justify-center overflow-hidden bg-black">
+                <video id="video-player" controls autoplay class="w-full h-full max-h-full object-contain" playsinline></video>
+                
+                <!-- Loading Overlay -->
+                <div id="video-loading" class="hidden absolute inset-0 bg-black/70 backdrop-blur-sm flex flex-col items-center justify-center gap-3">
+                    <div class="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                    <p class="text-sm text-gray-300 font-medium tracking-wide">Cargando transmisión en vivo...</p>
+                </div>
+
+                <!-- Error Notice Overlay -->
+                <div id="video-error" class="hidden absolute inset-0 bg-black/85 flex flex-col items-center justify-center p-6 text-center">
+                    <i class="fa-solid fa-triangle-exclamation text-4xl text-amber-500 mb-3"></i>
+                    <h3 class="text-base font-semibold text-gray-100 mb-1">No se pudo reproducir este flujo</h3>
+                    <p class="text-xs text-gray-400 max-w-md mb-4" id="video-error-msg">El canal puede estar fuera de línea temporalmente o requiere formato especial.</p>
+                    <button onclick="retryWithProxy()" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-medium transition flex items-center gap-2">
+                        <i class="fa-solid fa-rotate-right"></i> Reintentar con Proxy Local
+                    </button>
+                </div>
+            </div>
+
+            <!-- Current Playing Channel Bar -->
+            <div class="bg-gray-900 border-t border-gray-800 p-4 flex items-center justify-between flex-shrink-0">
+                <div class="flex items-center space-x-3 truncate">
+                    <div id="playing-logo-container" class="w-12 h-12 rounded-lg bg-gray-800 border border-gray-700 flex items-center justify-center overflow-hidden flex-shrink-0">
+                        <i class="fa-solid fa-satellite-dish text-gray-500 text-xl"></i>
+                    </div>
+                    <div class="truncate">
+                        <div class="flex items-center gap-2">
+                            <h2 id="playing-channel-name" class="text-base font-bold text-white truncate">Selecciona un canal para reproducir</h2>
+                            <span id="playing-badge" class="hidden text-[10px] bg-red-500/20 text-red-400 border border-red-500/30 font-semibold px-2 py-0.5 rounded-full uppercase tracking-wider">EN VIVO</span>
+                        </div>
+                        <p id="playing-group-name" class="text-xs text-gray-400 truncate">Ninguna lista activa</p>
+                    </div>
+                </div>
+
+                <div class="flex items-center space-x-2 flex-shrink-0">
+                    <button id="btn-toggle-proxy" onclick="toggleProxyMode()" class="px-3 py-1.5 text-xs bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg border border-gray-700 flex items-center gap-2" title="El proxy ayuda a saltar bloqueos CORS del navegador">
+                        <i class="fa-solid fa-shield-halved text-gray-400"></i> Proxy: <span id="proxy-status" class="font-bold text-gray-400">OFF</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Sidebar (Channels Explorer & Checker) -->
+        <aside class="w-96 bg-gray-900 border-l border-gray-800 flex flex-col flex-shrink-0">
+            <!-- Header of Sidebar -->
+            <div class="p-3.5 border-b border-gray-800 flex flex-col gap-2.5">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h2 class="text-xs font-bold uppercase tracking-wider text-gray-400" id="playlist-title">LISTA ACTUAL</h2>
+                        <span class="text-xs font-semibold text-blue-400" id="channel-counter">0 canales</span>
+                    </div>
+
+                    <!-- Button Verify All Channels -->
+                    <button id="btn-verify" onclick="startVerification()" class="px-3 py-1 text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg transition flex items-center gap-1.5 shadow-sm shadow-emerald-600/20">
+                        <i class="fa-solid fa-filter"></i> Filtrar Caídos
+                    </button>
+                </div>
+
+                <!-- Search Input -->
+                <div class="relative">
+                    <i class="fa-solid fa-magnifying-glass absolute left-3 top-2.5 text-gray-500 text-xs"></i>
+                    <input type="text" id="search-input" oninput="filterChannels()" placeholder="Buscar canal..." class="w-full bg-gray-950 text-xs text-gray-200 placeholder-gray-500 pl-8 pr-3 py-2 rounded-lg border border-gray-800 focus:outline-none focus:border-blue-500 transition">
+                </div>
+            </div>
+
+            <!-- Progress Bar during Verification -->
+            <div id="verify-progress-bar" class="hidden bg-gray-950 p-3 border-b border-gray-800 flex flex-col gap-1.5">
+                <div class="flex items-center justify-between text-xs">
+                    <span class="text-gray-300 font-medium" id="verify-status-text">Verificando canales en tiempo real...</span>
+                    <span class="text-blue-400 font-bold" id="verify-percentage">0%</span>
+                </div>
+                <div class="w-full bg-gray-800 h-1.5 rounded-full overflow-hidden">
+                    <div id="verify-progress-fill" class="bg-blue-500 h-full transition-all duration-300" style="width: 0%"></div>
+                </div>
+            </div>
+
+            <!-- Channels List Container -->
+            <div id="channels-container" class="flex-1 overflow-y-auto p-2 space-y-1.5">
+                <!-- Empty State -->
+                <div id="empty-state" class="h-full flex flex-col items-center justify-center p-6 text-center text-gray-500">
+                    <i class="fa-solid fa-list-ul text-3xl mb-3 opacity-40"></i>
+                    <p class="text-xs font-medium">No hay canales cargados</p>
+                    <p class="text-[11px] text-gray-600 mt-1">Elige un país de América, conecta tu Xtream Codes o carga una lista externa arriba.</p>
+                </div>
+            </div>
+        </aside>
+    </div>
+
+    <!-- MODAL 1: PAÍSES DE AMÉRICA -->
+    <div id="modal-americas" class="hidden fixed inset-0 bg-black/75 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div class="bg-gray-900 border border-gray-800 rounded-2xl w-full max-w-lg shadow-2xl flex flex-col max-h-[80vh] overflow-hidden">
+            <div class="p-4 border-b border-gray-800 flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                    <i class="fa-solid fa-earth-americas text-blue-400"></i>
+                    <h3 class="text-sm font-bold text-white">Canales del Continente Americano</h3>
+                </div>
+                <button onclick="closeModal('modal-americas')" class="text-gray-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="p-4 overflow-y-auto flex-1">
+                <div class="grid grid-cols-2 gap-2" id="countries-grid">
+                    <!-- Loaded dynamically -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL 2: XTREAM CODES -->
+    <div id="modal-xtream" class="hidden fixed inset-0 bg-black/75 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div class="bg-gray-900 border border-gray-800 rounded-2xl w-full max-w-md shadow-2xl overflow-hidden">
+            <div class="p-4 border-b border-gray-800 flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                    <i class="fa-solid fa-key text-yellow-400"></i>
+                    <h3 class="text-sm font-bold text-white">Conexión Xtream Codes / Panel IPTV</h3>
+                </div>
+                <button onclick="closeModal('modal-xtream')" class="text-gray-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="p-5 space-y-3.5 text-xs">
+                <div>
+                    <label class="block text-gray-300 font-medium mb-1">Servidor / Host con Puerto</label>
+                    <input type="text" id="xtream-server" placeholder="ej. http://mi-servidor.xyz:8080" class="w-full bg-gray-950 border border-gray-800 rounded-lg p-2.5 text-white placeholder-gray-600 focus:outline-none focus:border-yellow-500">
+                </div>
+                <div>
+                    <label class="block text-gray-300 font-medium mb-1">Usuario</label>
+                    <input type="text" id="xtream-user" placeholder="Tu usuario" class="w-full bg-gray-950 border border-gray-800 rounded-lg p-2.5 text-white placeholder-gray-600 focus:outline-none focus:border-yellow-500">
+                </div>
+                <div>
+                    <label class="block text-gray-300 font-medium mb-1">Contraseña</label>
+                    <input type="password" id="xtream-password" placeholder="Tu contraseña" class="w-full bg-gray-950 border border-gray-800 rounded-lg p-2.5 text-white placeholder-gray-600 focus:outline-none focus:border-yellow-500">
+                </div>
+                <div>
+                    <label class="block text-gray-300 font-medium mb-1">Formato de Flujo</label>
+                    <select id="xtream-fmt" class="w-full bg-gray-950 border border-gray-800 rounded-lg p-2.5 text-white focus:outline-none focus:border-yellow-500">
+                        <option value="ts">MPEG-TS (.ts) - Recomendado</option>
+                        <option value="m3u8">HLS (.m3u8)</option>
+                    </select>
+                </div>
+                <button onclick="submitXtream()" class="w-full mt-2 py-2.5 bg-yellow-600 hover:bg-yellow-500 text-white font-bold rounded-lg transition shadow-md shadow-yellow-600/20">
+                    Cargar Canales de Xtream
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL 3: URL EXTERNA -->
+    <div id="modal-url" class="hidden fixed inset-0 bg-black/75 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div class="bg-gray-900 border border-gray-800 rounded-2xl w-full max-w-md shadow-2xl overflow-hidden">
+            <div class="p-4 border-b border-gray-800 flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                    <i class="fa-solid fa-link text-emerald-400"></i>
+                    <h3 class="text-sm font-bold text-white">Cargar Lista M3U Externa</h3>
+                </div>
+                <button onclick="closeModal('modal-url')" class="text-gray-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="p-5 space-y-3.5 text-xs">
+                <div>
+                    <label class="block text-gray-300 font-medium mb-1">URL de la Lista (.m3u o .m3u8)</label>
+                    <input type="text" id="custom-url" placeholder="https://ejemplo.com/lista.m3u" class="w-full bg-gray-950 border border-gray-800 rounded-lg p-2.5 text-white placeholder-gray-600 focus:outline-none focus:border-emerald-500">
+                </div>
+                <div>
+                    <label class="block text-gray-300 font-medium mb-1">Nombre Descriptivo</label>
+                    <input type="text" id="custom-name" placeholder="Mi Lista IPTV" class="w-full bg-gray-950 border border-gray-800 rounded-lg p-2.5 text-white placeholder-gray-600 focus:outline-none focus:border-emerald-500">
+                </div>
+                <button onclick="submitUrl()" class="w-full mt-2 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg transition shadow-md shadow-emerald-600/20">
+                    Descargar y Cargar Canales
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL 4: LISTAS GUARDADAS -->
+    <div id="modal-saved" class="hidden fixed inset-0 bg-black/75 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div class="bg-gray-900 border border-gray-800 rounded-2xl w-full max-w-md shadow-2xl flex flex-col max-h-[80vh] overflow-hidden">
+            <div class="p-4 border-b border-gray-800 flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                    <i class="fa-solid fa-folder-open text-purple-400"></i>
+                    <h3 class="text-sm font-bold text-white">Listas M3U en Carpeta 'output/'</h3>
+                </div>
+                <button onclick="closeModal('modal-saved')" class="text-gray-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="p-4 overflow-y-auto flex-1 space-y-2" id="saved-lists-container">
+                <!-- Loaded dynamically -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Application Logic -->
+    <script>
+        let currentChannels = [];
+        let currentPlaylistName = "Lista";
+        let activeChannel = null;
+        let hls = null;
+        let useProxy = false;
+
+        const video = document.getElementById('video-player');
+        const loading = document.getElementById('video-loading');
+        const errorOverlay = document.getElementById('video-error');
+
+        function openModal(id) {
+            document.getElementById(id).classList.remove('hidden');
+            if (id === 'modal-americas') loadCountriesList();
+            if (id === 'modal-saved') loadSavedLists();
+        }
+
+        function closeModal(id) {
+            document.getElementById(id).classList.add('hidden');
+        }
+
+        function toggleProxyMode() {
+            useProxy = !useProxy;
+            const statusEl = document.getElementById('proxy-status');
+            statusEl.innerText = useProxy ? 'ON' : 'OFF';
+            statusEl.className = useProxy ? 'font-bold text-emerald-400' : 'font-bold text-gray-400';
+            if (activeChannel) {
+                playChannel(activeChannel);
+            }
+        }
+
+        async function loadCountriesList() {
+            const container = document.getElementById('countries-grid');
+            container.innerHTML = '<p class="text-xs text-gray-400 col-span-2 text-center py-4">Cargando países...</p>';
+            try {
+                const res = await fetch('/api/countries');
+                const countries = await res.json();
+                container.innerHTML = '';
+                countries.forEach(c => {
+                    const btn = document.createElement('button');
+                    btn.className = "flex items-center gap-2.5 p-2.5 bg-gray-950 hover:bg-blue-600/20 hover:border-blue-500 border border-gray-800 rounded-xl text-left transition group";
+                    btn.onclick = () => loadCountry(c.name, c.url);
+                    btn.innerHTML = `
+                        <i class="fa-solid fa-location-dot text-gray-600 group-hover:text-blue-400 text-xs"></i>
+                        <span class="text-xs font-medium text-gray-200 group-hover:text-white truncate">${c.name}</span>
+                    `;
+                    container.appendChild(btn);
+                });
+            } catch (e) {
+                container.innerHTML = '<p class="text-xs text-red-400 col-span-2 text-center">Error al cargar países</p>';
+            }
+        }
+
+        async function loadCountry(countryName, url) {
+            closeModal('modal-americas');
+            showLoadingList(countryName);
+            try {
+                const res = await fetch('/api/load-playlist', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ source_type: 'country', country: countryName, url: url })
+                });
+                const data = await res.json();
+                renderChannels(data.name, data.channels);
+            } catch (e) {
+                alert("Error al cargar la lista de " + countryName);
+            }
+        }
+
+        async function submitXtream() {
+            const server = document.getElementById('xtream-server').value.trim();
+            const user = document.getElementById('xtream-user').value.trim();
+            const pass = document.getElementById('xtream-password').value.trim();
+            const fmt = document.getElementById('xtream-fmt').value;
+
+            if (!server || !user || !pass) {
+                alert("Por favor completa Servidor, Usuario y Contraseña.");
+                return;
+            }
+
+            closeModal('modal-xtream');
+            showLoadingList("Xtream: " + user);
+            try {
+                const res = await fetch('/api/load-playlist', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        source_type: 'xtream',
+                        server: server,
+                        username: user,
+                        password: pass,
+                        format: fmt,
+                        name: "Xtream_" + user
+                    })
+                });
+                const data = await res.json();
+                if (data.error) {
+                    alert(data.error);
+                    return;
+                }
+                renderChannels(data.name, data.channels);
+            } catch (e) {
+                alert("Error conectando al panel Xtream Codes.");
+            }
+        }
+
+        async function submitUrl() {
+            const url = document.getElementById('custom-url').value.trim();
+            const name = document.getElementById('custom-name').value.trim() || "Lista Externa";
+            if (!url) return;
+
+            closeModal('modal-url');
+            showLoadingList(name);
+            try {
+                const res = await fetch('/api/load-playlist', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ source_type: 'url', url: url, name: name })
+                });
+                const data = await res.json();
+                renderChannels(data.name, data.channels);
+            } catch (e) {
+                alert("Error al cargar la URL externa.");
+            }
+        }
+
+        async function loadSavedLists() {
+            const container = document.getElementById('saved-lists-container');
+            container.innerHTML = '<p class="text-xs text-gray-400 text-center py-4">Cargando...</p>';
+            try {
+                const res = await fetch('/api/saved-lists');
+                const lists = await res.json();
+                container.innerHTML = '';
+                if (lists.length === 0) {
+                    container.innerHTML = '<p class="text-xs text-gray-500 text-center py-4">No hay listas guardadas aún en output/</p>';
+                    return;
+                }
+                lists.forEach(l => {
+                    const div = document.createElement('div');
+                    div.className = "flex items-center justify-between p-3 bg-gray-950 border border-gray-800 rounded-xl hover:border-purple-500 transition cursor-pointer";
+                    div.onclick = () => loadSavedListFile(l.filename);
+                    div.innerHTML = `
+                        <div class="truncate">
+                            <p class="text-xs font-semibold text-white truncate">${l.filename}</p>
+                            <p class="text-[10px] text-gray-500">${(l.size / 1024).toFixed(1)} KB</p>
+                        </div>
+                        <i class="fa-solid fa-chevron-right text-gray-600 text-xs"></i>
+                    `;
+                    container.appendChild(div);
+                });
+            } catch (e) {
+                container.innerHTML = '<p class="text-xs text-red-400 text-center">Error al leer listas guardadas</p>';
+            }
+        }
+
+        async function loadSavedListFile(filename) {
+            closeModal('modal-saved');
+            showLoadingList(filename);
+            try {
+                const res = await fetch('/api/load-saved/' + encodeURIComponent(filename));
+                const data = await res.json();
+                renderChannels(data.name, data.channels);
+            } catch (e) {
+                alert("Error cargando archivo guardado.");
+            }
+        }
+
+        function showLoadingList(title) {
+            document.getElementById('playlist-title').innerText = title.toUpperCase();
+            document.getElementById('channel-counter').innerText = "Cargando...";
+            document.getElementById('channels-container').innerHTML = `
+                <div class="h-64 flex flex-col items-center justify-center gap-3 text-gray-400">
+                    <div class="w-8 h-8 border-3 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                    <span class="text-xs font-medium">Obteniendo canales...</span>
+                </div>
+            `;
+        }
+
+        function renderChannels(name, channels) {
+            currentPlaylistName = name;
+            currentChannels = channels;
+            document.getElementById('playlist-title').innerText = name.toUpperCase();
+            document.getElementById('channel-counter').innerText = `${channels.length} canales`;
+
+            const container = document.getElementById('channels-container');
+            container.innerHTML = '';
+
+            if (channels.length === 0) {
+                container.innerHTML = `
+                    <div class="p-6 text-center text-gray-500 text-xs">
+                        No se encontraron canales en esta lista.
+                    </div>
+                `;
+                return;
+            }
+
+            channels.forEach((ch, idx) => {
+                const card = document.createElement('div');
+                card.id = `channel-item-${idx}`;
+                card.className = "flex items-center gap-3 p-2.5 rounded-xl border border-gray-800 bg-gray-950/60 hover:bg-gray-800/80 hover:border-gray-700 cursor-pointer transition";
+                card.onclick = () => playChannel(ch, idx);
+
+                const logoHtml = ch.logo
+                    ? `<img src="${ch.logo}" class="w-8 h-8 rounded-lg object-contain bg-black/40 flex-shrink-0" onerror="this.onerror=null; this.src=''; this.parentElement.innerHTML='<i class=\\'fa-solid fa-tv text-gray-600 text-xs\\'></i>';">`
+                    : `<i class="fa-solid fa-tv text-gray-600 text-xs"></i>`;
+
+                card.innerHTML = `
+                    <div class="w-8 h-8 rounded-lg bg-gray-900 border border-gray-800 flex items-center justify-center flex-shrink-0 overflow-hidden">
+                        ${logoHtml}
+                    </div>
+                    <div class="flex-1 truncate">
+                        <p class="text-xs font-semibold text-gray-200 truncate">${ch.name}</p>
+                        <p class="text-[10px] text-gray-500 truncate">${ch.group || 'General'}</p>
+                    </div>
+                    <i class="fa-solid fa-play text-gray-600 text-[10px] hover:text-blue-400"></i>
+                `;
+                container.appendChild(card);
+            });
+
+            // Reproducir automáticamente el primer canal
+            if (channels.length > 0) {
+                playChannel(channels[0], 0);
+            }
+        }
+
+        function playChannel(ch, idx = null) {
+            activeChannel = ch;
+            errorOverlay.classList.add('hidden');
+            loading.classList.remove('hidden');
+
+            document.getElementById('playing-channel-name').innerText = ch.name;
+            document.getElementById('playing-group-name').innerText = `${currentPlaylistName} • ${ch.group || 'En Vivo'}`;
+            document.getElementById('playing-badge').classList.remove('hidden');
+
+            // Logo del reproductor
+            const logoCont = document.getElementById('playing-logo-container');
+            if (ch.logo) {
+                logoCont.innerHTML = `<img src="${ch.logo}" class="w-full h-full object-contain" onerror="this.parentElement.innerHTML='<i class=\\'fa-solid fa-satellite-dish text-gray-500 text-xl\\'></i>'">`;
+            } else {
+                logoCont.innerHTML = `<i class="fa-solid fa-satellite-dish text-gray-500 text-xl"></i>`;
+            }
+
+            // Resaltar canal activo
+            document.querySelectorAll('#channels-container > div').forEach(el => el.classList.remove('channel-active'));
+            if (idx !== null) {
+                const el = document.getElementById(`channel-item-${idx}`);
+                if (el) el.classList.add('channel-active');
+            }
+
+            // Construir URL del stream (con o sin proxy)
+            let streamUrl = ch.url;
+            if (useProxy) {
+                streamUrl = '/api/proxy?url=' + encodeURIComponent(ch.url);
+            }
+
+            if (hls) {
+                hls.destroy();
+            }
+
+            if (Hls.isSupported() && (streamUrl.includes('.m3u8') || streamUrl.includes('/api/proxy') || streamUrl.includes('.ts'))) {
+                hls = new Hls({
+                    enableWorker: true,
+                    lowLatencyMode: true,
+                    maxBufferLength: 30
+                });
+                hls.loadSource(streamUrl);
+                hls.attachMedia(video);
+                hls.on(Hls.Events.MANIFEST_PARSED, () => {
+                    loading.classList.add('hidden');
+                    video.play().catch(() => {});
+                });
+                hls.on(Hls.Events.ERROR, (event, data) => {
+                    if (data.fatal) {
+                        loading.classList.add('hidden');
+                        showVideoError("Error de reproducción HLS.");
+                    }
+                });
+            } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+                // Soporte nativo Safari/Edge
+                video.src = streamUrl;
+                video.addEventListener('loadedmetadata', () => {
+                    loading.classList.add('hidden');
+                    video.play().catch(() => {});
+                });
+            } else {
+                video.src = streamUrl;
+                loading.classList.add('hidden');
+            }
+        }
+
+        function showVideoError(msg) {
+            loading.classList.add('hidden');
+            errorOverlay.classList.remove('hidden');
+            document.getElementById('video-error-msg').innerText = msg;
+        }
+
+        function retryWithProxy() {
+            useProxy = true;
+            document.getElementById('proxy-status').innerText = 'ON';
+            document.getElementById('proxy-status').className = 'font-bold text-emerald-400';
+            if (activeChannel) {
+                playChannel(activeChannel);
+            }
+        }
+
+        function filterChannels() {
+            const query = document.getElementById('search-input').value.toLowerCase();
+            currentChannels.forEach((ch, idx) => {
+                const el = document.getElementById(`channel-item-${idx}`);
+                if (!el) return;
+                const match = ch.name.toLowerCase().includes(query) || (ch.group && ch.group.toLowerCase().includes(query));
+                el.style.display = match ? 'flex' : 'none';
+            });
+        }
+
+        async function startVerification() {
+            if (currentChannels.length === 0) {
+                alert("No hay canales cargados para verificar.");
+                return;
+            }
+
+            const pBar = document.getElementById('verify-progress-bar');
+            pBar.classList.remove('hidden');
+            document.getElementById('verify-status-text').innerText = "Iniciando escaneo concurrente...";
+            document.getElementById('verify-percentage').innerText = "0%";
+            document.getElementById('verify-progress-fill').style.width = "0%";
+
+            try {
+                const res = await fetch('/api/verify-playlist', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        channels: currentChannels,
+                        name: currentPlaylistName
+                    })
+                });
+                const { task_id } = await res.json();
+
+                // Poll de estado cada 500ms
+                const interval = setInterval(async () => {
+                    const statusRes = await fetch('/api/verification-status/' + task_id);
+                    const task = await statusRes.json();
+
+                    const pct = Math.round((task.progress / task.total) * 100);
+                    document.getElementById('verify-percentage').innerText = `${pct}%`;
+                    document.getElementById('verify-progress-fill').style.width = `${pct}%`;
+                    document.getElementById('verify-status-text').innerText = `Verificando: ${task.progress}/${task.total} (${task.active_channels.length} activos)`;
+
+                    if (task.status === 'completed') {
+                        clearInterval(interval);
+                        setTimeout(() => pBar.classList.add('hidden'), 2000);
+                        renderChannels(currentPlaylistName + "_Activos", task.active_channels);
+                        alert(`¡Verificación completada!\nCanales activos encontrados: ${task.active_channels.length} de ${task.total}.\nGuardado en la carpeta output/`);
+                    }
+                }, 600);
+
+            } catch (e) {
+                alert("Error al iniciar verificación.");
+                pBar.classList.add('hidden');
+            }
+        }
+
+        // Cargar por defecto el primer país al iniciar
+        window.onload = () => {
+            loadCountriesList();
+        };
+    </script>
+</body>
+</html>

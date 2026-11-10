@@ -1,0 +1,10 @@
+{
+  "appId": "com.freeiptv.app",
+  "appName": "Free-IPTV",
+  "webDir": "www",
+  "plugins": {
+    "CapacitorHttp": {
+      "enabled": true
+    }
+  }
+}
