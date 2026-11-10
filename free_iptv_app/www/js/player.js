@@ -155,6 +155,11 @@ class VideoPlayerManager {
     this.maxBgRetries = 3;
     this.bgRetryTimer = null;
 
+    // FASE 2: estado de audio (pistas, fallo de códec, derivación externa)
+    this.audioTrackInfo = null;      // { tracks: [...], source: 'hlsjs'|'xtream' }
+    this._externalRedirected = false; // no derivar 2 veces a externo en la misma sesión
+    this._codecFailCount = 0;         // fallos MEDIA_ERROR consecutivos por códec
+
     this.initTouchGestures();
     this.initVideoEvents();
   }
@@ -164,6 +169,11 @@ class VideoPlayerManager {
 
     this.currentChannel = channel;
     this.hideIdle();
+
+    // FASE 2: flags de audio/derivación por sesión de reproducción
+    this._externalRedirected = false;
+    this.audioTrackInfo = null;
+    if (!isSilentBg) this._codecFailCount = 0;
 
     if (!isSilentBg) {
       this.bgRetryCount = 0;
@@ -198,6 +208,14 @@ class VideoPlayerManager {
     const isVodExt = /\.(mp4|mkv|avi|mov|m4v|wmv|flv|webm|ts|m2ts|mpg|mpeg)(?:$|[?#])/i.test(streamUrl);
     const isMP4 = /\.mp4(?:$|[?#])/i.test(streamUrl);
     const isTS = /\.ts(?:$|[?#])/i.test(streamUrl);
+
+    // FASE 2: el usuario/puente puede forzar reproductor externo (botón "Abrir en VLC")
+    if (channel.forceExternal && typeof openMediaInExternalPlayer === 'function') {
+      this.showLoading(false);
+      openMediaInExternalPlayer(streamUrl, channel.name || 'Contenido');
+      this.resetControlsTimeout();
+      return;
+    }
 
     console.log('[IPTV] Iniciando reproducción:', {
       url: streamUrl.replace(/\/\/([^/@]+)@/, '//[REDACTED]@'),
@@ -275,9 +293,15 @@ class VideoPlayerManager {
       this.hls.on(Hls.Events.MANIFEST_PARSED, () => {
         console.log('[IPTV] MANIFEST_PARSED');
         onPlaybackStarted();
+        // FASE 2: exponer pistas de audio HLS al AudioTrackManager
+        try { this.collectHlsAudioTracks(); } catch (e) {}
         this.video.play().catch(error => {
           console.error('[IPTV] Error video.play():', error);
         });
+      });
+
+      this.hls.on(Hls.Events.AUDIO_TRACKS_UPDATED, () => {
+        try { this.collectHlsAudioTracks(); } catch (e) {}
       });
 
       this.hls.on(Hls.Events.FRAG_LOADED, (event, data) => {
@@ -301,6 +325,13 @@ class VideoPlayerManager {
               break;
             case Hls.ErrorTypes.MEDIA_ERROR:
               console.warn('[IPTV] Media fatal error, intentando recoverMediaError()...');
+              // FASE 2: si el códec de audio (p.ej. AC3/E-AC3) no es decodificable
+              // por WebView, tras 2 recuperaciones derivar a reproductor externo.
+              this._codecFailCount++;
+              if (this._codecFailCount >= 2 && this.isVodOrCodecSensitive()) {
+                this._redirectToExternalPlayer('⚠️ Códec de audio no compatible. Abriendo en VLC / MX Player...');
+                return;
+              }
               this.hls.recoverMediaError();
               break;
             default:
