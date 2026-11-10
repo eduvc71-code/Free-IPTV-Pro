@@ -1,0 +1,50 @@
+# Node & NPM
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Android & Gradle
+.gradle/
+build/
+*/build/
+*/*/build/
+*.class
+.cxx/
+local.properties
+.navigation/
+captures/
+*.hprof
+
+# Android Studio / IDEs
+.idea/
+*.iml
+*.iws
+*.ipr
+.DS_Store
+Thumbs.db
+.vscode/
+
+# Binaries & Archives
+*.apk
+*.aab
+*.idsig
+*.zip
+*.tar
+*.tar.gz
+*.7z
+*.jar
+!gradle-wrapper.jar
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.env
+venv/
+.env/
+
+# Large temporary playlist caches and logs
+*.log
+test_playlist.m3u
+output/

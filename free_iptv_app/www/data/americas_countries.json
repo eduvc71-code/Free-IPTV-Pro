@@ -1,0 +1,542 @@
+[
+  {
+    "name": "Anguila",
+    "code": "AI",
+    "flag": "🇦🇮",
+    "url": "https://romaxa55.github.io/world_ip_tv/output/ai.m3u",
+    "fallbackUrl": "https://iptv-org.github.io/iptv/countries/ai.m3u",
+    "localPath": "data/playlists/ai.m3u",
+    "region": "central_america",
+    "region_name": "Centroamérica y Caribe"
+  },
+  {
+    "name": "Antigua y Barbuda",
+    "code": "AG",
+    "flag": "🇦🇬",
+    "url": "https://romaxa55.github.io/world_ip_tv/output/ag.m3u",
+    "fallbackUrl": "https://iptv-org.github.io/iptv/countries/ag.m3u",
+    "localPath": "data/playlists/ag.m3u",
+    "region": "central_america",
+    "region_name": "Centroamérica y Caribe"
+  },
+  {
+    "name": "Argentina",
+    "code": "AR",
+    "flag": "🇦🇷",
+    "url": "https://romaxa55.github.io/world_ip_tv/output/ar.m3u",
+    "fallbackUrl": "https://iptv-org.github.io/iptv/countries/ar.m3u",
+    "localPath": "data/playlists/ar.m3u",
+    "region": "south_america",
+    "region_name": "América del Sur"
+  },
+  {
+    "name": "Aruba",
+    "code": "AW",
+    "flag": "🇦🇼",
+    "url": "https://romaxa55.github.io/world_ip_tv/output/aw.m3u",
+    "fallbackUrl": "https://iptv-org.github.io/iptv/countries/aw.m3u",
+    "localPath": "data/playlists/aw.m3u",
+    "region": "central_america",
+    "region_name": "Centroamérica y Caribe"
+  },
+  {
+    "name": "Bahamas",
+    "code": "BS",
+    "flag": "🇧🇸",
+    "url": "https://romaxa55.github.io/world_ip_tv/output/bs.m3u",
+    "fallbackUrl": "https://iptv-org.github.io/iptv/countries/bs.m3u",
+    "localPath": "data/playlists/bs.m3u",
+    "region": "central_america",
+    "region_name": "Centroamérica y Caribe"
+  },
+  {
+    "name": "Barbados",
+    "code": "BB",
+    "flag": "🇧🇧",
+    "url": "https://romaxa55.github.io/world_ip_tv/output/bb.m3u",
+    "fallbackUrl": "https://iptv-org.github.io/iptv/countries/bb.m3u",
+    "localPath": "data/playlists/bb.m3u",
+    "region": "central_america",
+    "region_name": "Centroamérica y Caribe"
+  },
+  {
+    "name": "Belice",
+    "code": "BZ",
+    "flag": "🇧🇿",
+    "url": "https://romaxa55.github.io/world_ip_tv/output/bz.m3u",
+    "fallbackUrl": "https://iptv-org.github.io/iptv/countries/bz.m3u",
+    "localPath": "data/playlists/bz.m3u",
+    "region": "central_america",
+    "region_name": "Centroamérica y Caribe"
+  },
+  {
+    "name": "Bermudas",
+    "code": "BM",
+    "flag": "🇧🇲",
+    "url": "https://romaxa55.github.io/world_ip_tv/output/bm.m3u",
+    "fallbackUrl": "https://iptv-org.github.io/iptv/countries/bm.m3u",
+    "localPath": "data/playlists/bm.m3u",
+    "region": "central_america",
+    "region_name": "Centroamérica y Caribe"
+  },
+  {
+    "name": "Bolivia",
+    "code": "BO",
+    "flag": "🇧🇴",
+    "url": "https://romaxa55.github.io/world_ip_tv/output/bo.m3u",
+    "fallbackUrl": "https://iptv-org.github.io/iptv/countries/bo.m3u",
+    "localPath": "data/playlists/bo.m3u",
+    "region": "south_america",
+    "region_name": "América del Sur"
+  },
+  {
+    "name": "Bonaire",
+    "code": "BQ",
+    "flag": "🇧🇶",
+    "url": "https://romaxa55.github.io/world_ip_tv/output/bq.m3u",
+    "fallbackUrl": "https://iptv-org.github.io/iptv/countries/bq.m3u",
+    "localPath": "data/playlists/bq.m3u",
+    "region": "central_america",
+    "region_name": "Centroamérica y Caribe"
+  },
+  {
+    "name": "Brasil",
+    "code": "BR",
+    "flag": "🇧🇷",
+    "url": "https://romaxa55.github.io/world_ip_tv/output/br.m3u",
+    "fallbackUrl": "https://iptv-org.github.io/iptv/countries/br.m3u",
+    "localPath": "data/playlists/br.m3u",
+    "region": "south_america",
+    "region_name": "América del Sur"
+  },
+  {
+    "name": "Islas Vírgenes Británicas",
+    "code": "VG",
+    "flag": "🇻🇬",
+    "url": "https://romaxa55.github.io/world_ip_tv/output/vg.m3u",
+    "fallbackUrl": "https://iptv-org.github.io/iptv/countries/vg.m3u",
+    "localPath": "data/playlists/vg.m3u",
+    "region": "central_america",
+    "region_name": "Centroamérica y Caribe"
+  },
+  {
+    "name": "Canadá",
+    "code": "CA",
+    "flag": "🇨🇦",
+    "url": "https://romaxa55.github.io/world_ip_tv/output/ca.m3u",
+    "fallbackUrl": "https://iptv-org.github.io/iptv/countries/ca.m3u",
+    "localPath": "data/playlists/ca.m3u",
+    "region": "north_america",
+    "region_name": "América del Norte"
+  },
+  {
+    "name": "Islas Caimán",
+    "code": "KY",
+    "flag": "🇰🇾",
+    "url": "https://romaxa55.github.io/world_ip_tv/output/ky.m3u",
+    "fallbackUrl": "https://iptv-org.github.io/iptv/countries/ky.m3u",
+    "localPath": "data/playlists/ky.m3u",
+    "region": "central_america",
+    "region_name": "Centroamérica y Caribe"
+  },
+  {
+    "name": "Chile",
+    "code": "CL",
+    "flag": "🇨🇱",
+    "url": "https://romaxa55.github.io/world_ip_tv/output/cl.m3u",
+    "fallbackUrl": "https://iptv-org.github.io/iptv/countries/cl.m3u",
+    "localPath": "data/playlists/cl.m3u",
+    "region": "south_america",
+    "region_name": "América del Sur"
+  },
+  {
+    "name": "Colombia",
+    "code": "CO",
+    "flag": "🇨🇴",
+    "url": "https://romaxa55.github.io/world_ip_tv/output/co.m3u",
+    "fallbackUrl": "https://iptv-org.github.io/iptv/countries/co.m3u",
+    "localPath": "data/playlists/co.m3u",
+    "region": "south_america",
+    "region_name": "América del Sur"
+  },
+  {
+    "name": "Costa Rica",
+    "code": "CR",
+    "flag": "🇨🇷",
+    "url": "https://romaxa55.github.io/world_ip_tv/output/cr.m3u",
+    "fallbackUrl": "https://iptv-org.github.io/iptv/countries/cr.m3u",
+    "localPath": "data/playlists/cr.m3u",
+    "region": "central_america",
+    "region_name": "Centroamérica y Caribe"
+  },
+  {
+    "name": "Cuba",
+    "code": "CU",
+    "flag": "🇨🇺",
+    "url": "https://romaxa55.github.io/world_ip_tv/output/cu.m3u",
+    "fallbackUrl": "https://iptv-org.github.io/iptv/countries/cu.m3u",
+    "localPath": "data/playlists/cu.m3u",
+    "region": "central_america",
+    "region_name": "Centroamérica y Caribe"
+  },
+  {
+    "name": "Curazao",
+    "code": "CW",
+    "flag": "🇨🇼",
+    "url": "https://romaxa55.github.io/world_ip_tv/output/cw.m3u",
+    "fallbackUrl": "https://iptv-org.github.io/iptv/countries/cw.m3u",
+    "localPath": "data/playlists/cw.m3u",
+    "region": "central_america",
+    "region_name": "Centroamérica y Caribe"
+  },
+  {
+    "name": "Dominica",
+    "code": "DM",
+    "flag": "🇩🇲",
+    "url": "https://romaxa55.github.io/world_ip_tv/output/dm.m3u",
+    "fallbackUrl": "https://iptv-org.github.io/iptv/countries/dm.m3u",
+    "localPath": "data/playlists/dm.m3u",
+    "region": "central_america",
+    "region_name": "Centroamérica y Caribe"
+  },
+  {
+    "name": "República Dominicana",
+    "code": "DO",
+    "flag": "🇩🇴",
+    "url": "https://romaxa55.github.io/world_ip_tv/output/do.m3u",
+    "fallbackUrl": "https://iptv-org.github.io/iptv/countries/do.m3u",
+    "localPath": "data/playlists/do.m3u",
+    "region": "central_america",
+    "region_name": "Centroamérica y Caribe"
+  },
+  {
+    "name": "Ecuador",
+    "code": "EC",
+    "flag": "🇪🇨",
+    "url": "https://romaxa55.github.io/world_ip_tv/output/ec.m3u",
+    "fallbackUrl": "https://iptv-org.github.io/iptv/countries/ec.m3u",
+    "localPath": "data/playlists/ec.m3u",
+    "region": "south_america",
+    "region_name": "América del Sur"
+  },
+  {
+    "name": "El Salvador",
+    "code": "SV",
+    "flag": "🇸🇻",
+    "url": "https://romaxa55.github.io/world_ip_tv/output/sv.m3u",
+    "fallbackUrl": "https://iptv-org.github.io/iptv/countries/sv.m3u",
+    "localPath": "data/playlists/sv.m3u",
+    "region": "central_america",
+    "region_name": "Centroamérica y Caribe"
+  },
+  {
+    "name": "Islas Malvinas",
+    "code": "FK",
+    "flag": "🇫🇰",
+    "url": "https://romaxa55.github.io/world_ip_tv/output/fk.m3u",
+    "fallbackUrl": "https://iptv-org.github.io/iptv/countries/fk.m3u",
+    "localPath": "data/playlists/fk.m3u",
+    "region": "central_america",
+    "region_name": "Centroamérica y Caribe"
+  },
+  {
+    "name": "Guayana Francesa",
+    "code": "GF",
+    "flag": "🇬🇫",
+    "url": "https://romaxa55.github.io/world_ip_tv/output/gf.m3u",
+    "fallbackUrl": "https://iptv-org.github.io/iptv/countries/gf.m3u",
+    "localPath": "data/playlists/gf.m3u",
+    "region": "central_america",
+    "region_name": "Centroamérica y Caribe"
+  },
+  {
+    "name": "Groenlandia",
+    "code": "GL",
+    "flag": "🇬🇱",
+    "url": "https://romaxa55.github.io/world_ip_tv/output/gl.m3u",
+    "fallbackUrl": "https://iptv-org.github.io/iptv/countries/gl.m3u",
+    "localPath": "data/playlists/gl.m3u",
+    "region": "central_america",
+    "region_name": "Centroamérica y Caribe"
+  },
+  {
+    "name": "Granada",
+    "code": "GD",
+    "flag": "🇬🇩",
+    "url": "https://romaxa55.github.io/world_ip_tv/output/gd.m3u",
+    "fallbackUrl": "https://iptv-org.github.io/iptv/countries/gd.m3u",
+    "localPath": "data/playlists/gd.m3u",
+    "region": "central_america",
+    "region_name": "Centroamérica y Caribe"
+  },
+  {
+    "name": "Guadalupe",
+    "code": "GP",
+    "flag": "🇬🇵",
+    "url": "https://romaxa55.github.io/world_ip_tv/output/gp.m3u",
+    "fallbackUrl": "https://iptv-org.github.io/iptv/countries/gp.m3u",
+    "localPath": "data/playlists/gp.m3u",
+    "region": "central_america",
+    "region_name": "Centroamérica y Caribe"
+  },
+  {
+    "name": "Guatemala",
+    "code": "GT",
+    "flag": "🇬🇹",
+    "url": "https://romaxa55.github.io/world_ip_tv/output/gt.m3u",
+    "fallbackUrl": "https://iptv-org.github.io/iptv/countries/gt.m3u",
+    "localPath": "data/playlists/gt.m3u",
+    "region": "central_america",
+    "region_name": "Centroamérica y Caribe"
+  },
+  {
+    "name": "Guyana",
+    "code": "GY",
+    "flag": "🇬🇾",
+    "url": "https://romaxa55.github.io/world_ip_tv/output/gy.m3u",
+    "fallbackUrl": "https://iptv-org.github.io/iptv/countries/gy.m3u",
+    "localPath": "data/playlists/gy.m3u",
+    "region": "south_america",
+    "region_name": "América del Sur"
+  },
+  {
+    "name": "Haití",
+    "code": "HT",
+    "flag": "🇭🇹",
+    "url": "https://romaxa55.github.io/world_ip_tv/output/ht.m3u",
+    "fallbackUrl": "https://iptv-org.github.io/iptv/countries/ht.m3u",
+    "localPath": "data/playlists/ht.m3u",
+    "region": "central_america",
+    "region_name": "Centroamérica y Caribe"
+  },
+  {
+    "name": "Honduras",
+    "code": "HN",
+    "flag": "🇭🇳",
+    "url": "https://romaxa55.github.io/world_ip_tv/output/hn.m3u",
+    "fallbackUrl": "https://iptv-org.github.io/iptv/countries/hn.m3u",
+    "localPath": "data/playlists/hn.m3u",
+    "region": "central_america",
+    "region_name": "Centroamérica y Caribe"
+  },
+  {
+    "name": "Jamaica",
+    "code": "JM",
+    "flag": "🇯🇲",
+    "url": "https://romaxa55.github.io/world_ip_tv/output/jm.m3u",
+    "fallbackUrl": "https://iptv-org.github.io/iptv/countries/jm.m3u",
+    "localPath": "data/playlists/jm.m3u",
+    "region": "central_america",
+    "region_name": "Centroamérica y Caribe"
+  },
+  {
+    "name": "Martinica",
+    "code": "MQ",
+    "flag": "🇲🇶",
+    "url": "https://romaxa55.github.io/world_ip_tv/output/mq.m3u",
+    "fallbackUrl": "https://iptv-org.github.io/iptv/countries/mq.m3u",
+    "localPath": "data/playlists/mq.m3u",
+    "region": "central_america",
+    "region_name": "Centroamérica y Caribe"
+  },
+  {
+    "name": "México",
+    "code": "MX",
+    "flag": "🇲🇽",
+    "url": "https://romaxa55.github.io/world_ip_tv/output/mx.m3u",
+    "fallbackUrl": "https://iptv-org.github.io/iptv/countries/mx.m3u",
+    "localPath": "data/playlists/mx.m3u",
+    "region": "north_america",
+    "region_name": "América del Norte"
+  },
+  {
+    "name": "Montserrat",
+    "code": "MS",
+    "flag": "🇲🇸",
+    "url": "https://romaxa55.github.io/world_ip_tv/output/ms.m3u",
+    "fallbackUrl": "https://iptv-org.github.io/iptv/countries/ms.m3u",
+    "localPath": "data/playlists/ms.m3u",
+    "region": "central_america",
+    "region_name": "Centroamérica y Caribe"
+  },
+  {
+    "name": "Nicaragua",
+    "code": "NI",
+    "flag": "🇳🇮",
+    "url": "https://romaxa55.github.io/world_ip_tv/output/ni.m3u",
+    "fallbackUrl": "https://iptv-org.github.io/iptv/countries/ni.m3u",
+    "localPath": "data/playlists/ni.m3u",
+    "region": "central_america",
+    "region_name": "Centroamérica y Caribe"
+  },
+  {
+    "name": "Panamá",
+    "code": "PA",
+    "flag": "🇵🇦",
+    "url": "https://romaxa55.github.io/world_ip_tv/output/pa.m3u",
+    "fallbackUrl": "https://iptv-org.github.io/iptv/countries/pa.m3u",
+    "localPath": "data/playlists/pa.m3u",
+    "region": "central_america",
+    "region_name": "Centroamérica y Caribe"
+  },
+  {
+    "name": "Paraguay",
+    "code": "PY",
+    "flag": "🇵🇾",
+    "url": "https://romaxa55.github.io/world_ip_tv/output/py.m3u",
+    "fallbackUrl": "https://iptv-org.github.io/iptv/countries/py.m3u",
+    "localPath": "data/playlists/py.m3u",
+    "region": "south_america",
+    "region_name": "América del Sur"
+  },
+  {
+    "name": "Perú",
+    "code": "PE",
+    "flag": "🇵🇪",
+    "url": "https://romaxa55.github.io/world_ip_tv/output/pe.m3u",
+    "fallbackUrl": "https://iptv-org.github.io/iptv/countries/pe.m3u",
+    "localPath": "data/playlists/pe.m3u",
+    "region": "south_america",
+    "region_name": "América del Sur"
+  },
+  {
+    "name": "Puerto Rico",
+    "code": "PR",
+    "flag": "🇵🇷",
+    "url": "https://romaxa55.github.io/world_ip_tv/output/pr.m3u",
+    "fallbackUrl": "https://iptv-org.github.io/iptv/countries/pr.m3u",
+    "localPath": "data/playlists/pr.m3u",
+    "region": "central_america",
+    "region_name": "Centroamérica y Caribe"
+  },
+  {
+    "name": "San Cristóbal y Nieves",
+    "code": "KN",
+    "flag": "🇰🇳",
+    "url": "https://romaxa55.github.io/world_ip_tv/output/kn.m3u",
+    "fallbackUrl": "https://iptv-org.github.io/iptv/countries/kn.m3u",
+    "localPath": "data/playlists/kn.m3u",
+    "region": "central_america",
+    "region_name": "Centroamérica y Caribe"
+  },
+  {
+    "name": "Santa Lucía",
+    "code": "LC",
+    "flag": "🇱🇨",
+    "url": "https://romaxa55.github.io/world_ip_tv/output/lc.m3u",
+    "fallbackUrl": "https://iptv-org.github.io/iptv/countries/lc.m3u",
+    "localPath": "data/playlists/lc.m3u",
+    "region": "central_america",
+    "region_name": "Centroamérica y Caribe"
+  },
+  {
+    "name": "San Pedro y Miquelón",
+    "code": "PM",
+    "flag": "🇵🇲",
+    "url": "https://romaxa55.github.io/world_ip_tv/output/pm.m3u",
+    "fallbackUrl": "https://iptv-org.github.io/iptv/countries/pm.m3u",
+    "localPath": "data/playlists/pm.m3u",
+    "region": "central_america",
+    "region_name": "Centroamérica y Caribe"
+  },
+  {
+    "name": "San Vicente y las Granadinas",
+    "code": "VC",
+    "flag": "🇻🇨",
+    "url": "https://romaxa55.github.io/world_ip_tv/output/vc.m3u",
+    "fallbackUrl": "https://iptv-org.github.io/iptv/countries/vc.m3u",
+    "localPath": "data/playlists/vc.m3u",
+    "region": "central_america",
+    "region_name": "Centroamérica y Caribe"
+  },
+  {
+    "name": "San Martín",
+    "code": "SX",
+    "flag": "🇸🇽",
+    "url": "https://romaxa55.github.io/world_ip_tv/output/sx.m3u",
+    "fallbackUrl": "https://iptv-org.github.io/iptv/countries/sx.m3u",
+    "localPath": "data/playlists/sx.m3u",
+    "region": "central_america",
+    "region_name": "Centroamérica y Caribe"
+  },
+  {
+    "name": "Surinam",
+    "code": "SR",
+    "flag": "🇸🇷",
+    "url": "https://romaxa55.github.io/world_ip_tv/output/sr.m3u",
+    "fallbackUrl": "https://iptv-org.github.io/iptv/countries/sr.m3u",
+    "localPath": "data/playlists/sr.m3u",
+    "region": "south_america",
+    "region_name": "América del Sur"
+  },
+  {
+    "name": "Trinidad y Tobago",
+    "code": "TT",
+    "flag": "🇹🇹",
+    "url": "https://romaxa55.github.io/world_ip_tv/output/tt.m3u",
+    "fallbackUrl": "https://iptv-org.github.io/iptv/countries/tt.m3u",
+    "localPath": "data/playlists/tt.m3u",
+    "region": "central_america",
+    "region_name": "Centroamérica y Caribe"
+  },
+  {
+    "name": "Islas Turcas y Caicos",
+    "code": "TC",
+    "flag": "🇹🇨",
+    "url": "https://romaxa55.github.io/world_ip_tv/output/tc.m3u",
+    "fallbackUrl": "https://iptv-org.github.io/iptv/countries/tc.m3u",
+    "localPath": "data/playlists/tc.m3u",
+    "region": "central_america",
+    "region_name": "Centroamérica y Caribe"
+  },
+  {
+    "name": "Islas Vírgenes de EE.UU.",
+    "code": "VI",
+    "flag": "🇻🇮",
+    "url": "https://romaxa55.github.io/world_ip_tv/output/vi.m3u",
+    "fallbackUrl": "https://iptv-org.github.io/iptv/countries/vi.m3u",
+    "localPath": "data/playlists/vi.m3u",
+    "region": "central_america",
+    "region_name": "Centroamérica y Caribe"
+  },
+  {
+    "name": "Estados Unidos",
+    "code": "US",
+    "flag": "🇺🇸",
+    "url": "https://romaxa55.github.io/world_ip_tv/output/us.m3u",
+    "fallbackUrl": "https://iptv-org.github.io/iptv/countries/us.m3u",
+    "localPath": "data/playlists/us.m3u",
+    "region": "north_america",
+    "region_name": "América del Norte"
+  },
+  {
+    "name": "Uruguay",
+    "code": "UY",
+    "flag": "🇺🇾",
+    "url": "https://romaxa55.github.io/world_ip_tv/output/uy.m3u",
+    "fallbackUrl": "https://iptv-org.github.io/iptv/countries/uy.m3u",
+    "localPath": "data/playlists/uy.m3u",
+    "region": "south_america",
+    "region_name": "América del Sur"
+  },
+  {
+    "name": "Venezuela",
+    "code": "VE",
+    "flag": "🇻🇪",
+    "url": "https://romaxa55.github.io/world_ip_tv/output/ve.m3u",
+    "fallbackUrl": "https://iptv-org.github.io/iptv/countries/ve.m3u",
+    "localPath": "data/playlists/ve.m3u",
+    "region": "south_america",
+    "region_name": "América del Sur"
+  },
+  {
+    "name": "España",
+    "code": "ES",
+    "flag": "🇪🇸",
+    "region": "europe",
+    "region_name": "España",
+    "url": "https://romaxa55.github.io/world_ip_tv/output/es.m3u",
+    "fallbackUrl": "https://raw.githubusercontent.com/iptv-org/iptv/master/streams/es.m3u",
+    "localPath": "data/playlists/es.m3u"
+  }
+]
