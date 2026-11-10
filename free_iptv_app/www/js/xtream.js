@@ -375,7 +375,7 @@ class IPTVDataService {
     let port = '';
     let username = '';
     let password = '';
-    let output = 'm3u8'; // DEFAULT TO M3U8 FOR ANDROID WEBVIEW COMPATIBILITY
+    let output = ''; // Sin formato explícito: se decide al construir URLs (ver getLiveStreamUrl)
 
     // Extract port explicitly using regex
     const portRegex = /:(\d{2,5})(?:[/?#]|$)/;
@@ -478,8 +478,9 @@ class IPTVDataService {
         console.log(`[IPTV] Xtream Player API éxito: ${streams.length} canales`);
         return streams.map(item => {
           const catName = categoryMap[String(item.category_id)] || item.category_name || 'En Vivo';
-          // Stream URL format: .m3u8 (HLS live streaming supported by WebView!)
-          const streamLiveUrl = `${cleanServer}/live/${encodeURIComponent(username)}/${encodeURIComponent(password)}/${item.stream_id}.${streamExt}`;
+          // FASE 2: usar el formato solicitado explícitamente (.ts o .m3u8).
+          // No forzar m3u8 sobre canales que solo existen como .ts.
+          const streamLiveUrl = this.getLiveStreamUrl(cleanServer, username, password, item.stream_id, streamExt);
           return {
             id: 'ch_xtream_' + (item.stream_id || Math.random().toString(36).substring(2, 6)),
             num: item.num || '',
@@ -520,14 +521,27 @@ class IPTVDataService {
     }
   }
 
-  saveAccount(server, username, password, format = 'm3u8') {
+  // =========================================================
+  // FASE 2: URLs de streams por tipo (sin conversiones incorrectas)
+  // - LIVE: respeta el formato solicitado (.ts nativo o .m3u8 HLS).
+  //   NUNCA se fuerza .m3u8 sobre un canal que solo existe como .ts,
+  //   ni se renombra .ts a .m3u8 (eso rompía canales en WebView).
+  // - VOD/Series: SIEMPRE usa container_extension real (mp4/mkv/ts...);
+  //   no se convierten a m3u8.
+  // =========================================================
+  getLiveStreamUrl(cleanServer, username, password, streamId, format) {
+    const ext = (format === 'm3u8' || format === 'ts') ? format : 'ts';
+    return `${cleanServer}/live/${encodeURIComponent(username)}/${encodeURIComponent(password)}/${streamId}.${ext}`;
+  }
+
+  saveAccount(server, username, password, format = 'ts') {
     let accounts = this.getSavedAccounts();
     accounts = accounts.filter(a => !(a.server === server && a.username === username));
     accounts.unshift({
       server,
       username,
       password,
-      format: format || 'm3u8',
+      format: format || 'ts',
       savedAt: new Date().toISOString()
     });
     if (accounts.length > 10) accounts.pop();
