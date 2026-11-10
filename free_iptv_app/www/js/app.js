@@ -1684,12 +1684,37 @@ function renderSeriesEpisodes(episodes) {
 
 function openMediaInExternalPlayer(url, title = 'IPTV') {
   if (!url) return;
+  // 1. Android nativo (puente JS en MainActivity)
   if (window.AndroidNativeApp && typeof window.AndroidNativeApp.openExternalPlayer === 'function') {
     window.AndroidNativeApp.openExternalPlayer(url, title);
     showToast("🎬 Abriendo en reproductor externo (VLC / MX)...");
     return;
   }
-  window.open(url, '_blank');
+  // 2. iOS nativo (Capacitor): abrir en VLC / Player via URL scheme o Safari
+  const cap = window.Capacitor;
+  if (cap && cap.isNativePlatform && cap.isNativePlatform() && cap.Plugins && cap.Plugins.Browser) {
+    try {
+      cap.Plugins.Browser.open({ url });
+      showToast("🎬 Abriendo en reproductor externo...");
+      return;
+    } catch (e) { /* continúa con fallback web */ }
+  }
+  // 3. Web: nueva pestaña (el SO decide el reproductor de .m3u8/.mp4)
+  try {
+    const w = window.open(url, '_blank');
+    if (!w) {
+      // Pop-up bloqueado: usar un <a download/blank> sintético dentro del gesto táctil
+      const a = document.createElement('a');
+      a.href = url;
+      a.target = '_blank';
+      a.rel = 'noopener';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    }
+  } catch (e) {
+    showToast('No se pudo abrir el reproductor externo');
+  }
 }
 
 function playVodExternal() {
