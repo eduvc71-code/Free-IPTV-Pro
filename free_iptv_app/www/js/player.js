@@ -194,6 +194,8 @@ class VideoPlayerManager {
     this.video.volume = 1.0;
 
     const isM3U8 = /\.m3u8(?:$|[?#])/i.test(streamUrl);
+    // VOD/Series Xtream: extensiones reales reportadas por player_api.php
+    const isVodExt = /\.(mp4|mkv|avi|mov|m4v|wmv|flv|webm|ts|m2ts|mpg|mpeg)(?:$|[?#])/i.test(streamUrl);
     const isMP4 = /\.mp4(?:$|[?#])/i.test(streamUrl);
     const isTS = /\.ts(?:$|[?#])/i.test(streamUrl);
 
@@ -204,14 +206,16 @@ class VideoPlayerManager {
       hlsSupported: typeof Hls !== 'undefined' && Hls.isSupported()
     });
 
-    // 1. Pre-resolución de redirecciones (302) para servidores CDN
+    // 1. Pre-resolución de redirecciones (302) SOLO para listas HLS (.m3u8)
+    //    Nota: para VOD/Series (mp4/mkv/ts) se omite el pre-chequeo completo:
+    //    descarga datos innecesarios y puede timeear en servidores lentos.
     let effectiveStreamUrl = streamUrl;
     try {
-      if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.CapacitorHttp) {
+      if (isM3U8 && window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.CapacitorHttp) {
         console.log('[IPTV] Verificando redirección CDN para:', streamUrl);
         const preCheck = await window.Capacitor.Plugins.CapacitorHttp.get({
           url: streamUrl,
-          headers: { 'User-Agent': 'IPTVSmartersPro' },
+          headers: { 'User-Agent': 'IPTVSmartersPro', 'Range': 'bytes=0-0' },
           connectTimeout: 8000,
           readTimeout: 8000
         });
@@ -328,6 +332,24 @@ class VideoPlayerManager {
         }
       }
 
+      // Formatos NO compatibles con HTML5/WebView (MKV, AVI, WMV, FLV...):
+      // casi siempre llevan audio Dolby/E-AC3 que WebView no decodifica.
+      // Se envían directo al reproductor externo (VLC / MX Player / Player iOS).
+      const webCompatible = /\.(mp4|m4v|webm|mov|ts|m2ts|mpg|mpeg)(?:$|[?#])/i.test(streamUrl) || isM3U8;
+      if (isVodExt && !webCompatible) {
+        this.showLoading(false);
+        if (typeof openMediaInExternalPlayer === 'function') {
+          showToast('🎬 Formato no compatible internamente. Abriendo en VLC / MX Player...');
+          openMediaInExternalPlayer(streamUrl, channel.name || 'Película');
+        } else {
+          this.showError(
+            'Formato de video no compatible',
+            'Esta película usa un contenedor (MKV/AVI) que el navegador no puede reproducir. Instálala en VLC o MX Player.'
+          );
+        }
+        return;
+      }
+
       console.log('[IPTV] Usando reproducción directa con URL:', effectiveStreamUrl);
 
       this.video.muted = false;
@@ -339,7 +361,32 @@ class VideoPlayerManager {
         onPlaybackStarted();
       }).catch(error => {
         console.error('[IPTV] Error en reproducción directa:', error);
+        // Si el fallo es de códec/formato (NotSupportedError) o de red,
+        // ofrecer automáticamente el reproductor externo para VOD/Series
+        const errName = error && error.name ? error.name : '';
+        const isType = channel && (channel.type === 'vod' || channel.type === 'episode' || channel.type === 'series');
+        if ((errName === 'NotSupportedError' || isType) && typeof openMediaInExternalPlayer === 'function') {
+          showToast('🔊 Sin soporte interno (códec/audio). Abriendo en reproductor externo...');
+          openMediaInExternalPlayer(streamUrl, channel?.name || 'Contenido');
+        } else {
+          this.handleStreamFailInBackground();
+        }
       });
+
+      // Timeout de seguridad: si en 15s no arrancó ni metadata ni playing,
+      // intentar recuperación externa (evita "pantalla negra" en películas)
+      clearTimeout(this.vodStartTimer);
+      this.vodStartTimer = setTimeout(() => {
+        if (this.currentChannel === channel && this.video.readyState < 2) {
+          console.warn('[IPTV] Arranque agotado para contenido directo; derivando a reproductor externo.');
+          if (typeof openMediaInExternalPlayer === 'function') {
+            this.showLoading(false);
+            openMediaInExternalPlayer(streamUrl, channel?.name || 'Contenido');
+          } else {
+            this.handleStreamFailInBackground();
+          }
+        }
+      }, 15000);
     }
 
     this.resetControlsTimeout();
@@ -791,6 +838,7 @@ class VideoPlayerManager {
 
     this.video.addEventListener('playing', () => {
       console.log('[IPTV] VIDEO PLAYING');
+      clearTimeout(this.vodStartTimer); // arranque OK: cancelar watchdog externo
       this.showLoading(false);
       this.hideError();
       this.hideBgRetry();
