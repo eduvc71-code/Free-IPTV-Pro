@@ -157,6 +157,8 @@ async function switchAppMode(mode, userInitiated = true) {
   }
   if (isModeA) {
     currentContentType = 'live';
+    window.currentContentType = 'live';
+    document.body.classList.remove('vod-mode');
     updateContentTypeButtons();
   }
 
@@ -448,6 +450,12 @@ function renderNextChannelBatch() {
 
   const container = document.getElementById('channels-list');
   const tvContainer = document.getElementById('tv-channels-list');
+
+  const isGrid = (currentContentType !== 'live');
+  const containerClass = isGrid ? 'flex-1 overflow-y-auto grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 p-3' : 'flex-1 overflow-y-auto p-2 space-y-1.5';
+
+  if (container) container.className = containerClass;
+  if (tvContainer) tvContainer.className = containerClass;
 
   nextBatch.forEach((item, idx) => {
     const absoluteIdx = displayedChannelCount + idx + 1;
@@ -803,6 +811,8 @@ async function connectXtreamCodes() {
     currentActiveAccount = { server, username: user, password: pass, format: fmt };
     localStorage.setItem('free_iptv_active_account', JSON.stringify(currentActiveAccount));
     currentContentType = 'live';
+    window.currentContentType = 'live';
+    document.body.classList.remove('vod-mode');
     updateContentTypeButtons();
 
     switchAppMode('B', false);
@@ -823,6 +833,8 @@ async function loadAccountChannelsDirect(acc, forceRefresh = false) {
   currentActiveAccount = acc;
   localStorage.setItem('free_iptv_active_account', JSON.stringify(currentActiveAccount));
   currentContentType = 'live';
+  window.currentContentType = 'live';
+  document.body.classList.remove('vod-mode');
   updateContentTypeButtons();
 
   const cacheKey = `xtream_${acc.server}_${acc.username}`;
@@ -1220,7 +1232,18 @@ function getActiveXtreamAccount() {
 function switchContentType(type) {
   if (type !== 'live' && type !== 'vod' && type !== 'series') type = 'live';
   currentContentType = type;
+  window.currentContentType = type;
   updateContentTypeButtons();
+
+  const isVodOrSeries = (type === 'vod' || type === 'series');
+  document.body.classList.toggle('vod-mode', isVodOrSeries);
+
+  // Al pasar a Películas o Series, detener inmediatamente el reproductor interno si estaba reproduciendo
+  if (isVodOrSeries && window.playerManager) {
+    try {
+      window.playerManager.stop();
+    } catch (e) {}
+  }
 
   const titleEl = document.getElementById('current-country-title');
 
@@ -1444,7 +1467,7 @@ function highlightContentCategory(catName) {
 function createVodCardElement(vod, numberIndex, isTvLayout = false) {
   const card = document.createElement('div');
   card.id = `vod-${vod.stream_id}`;
-  card.className = `p-2.5 bg-gray-900/80 hover:bg-gray-800/80 border border-gray-800/80 hover:border-yellow-500/50 rounded-xl flex items-center justify-between cursor-pointer transition active:scale-[0.99]`;
+  card.className = `bg-gray-900/90 hover:bg-gray-800 border border-gray-800 hover:border-yellow-500/50 rounded-xl overflow-hidden flex flex-col cursor-pointer transition active:scale-95 group shadow-lg`;
   card.setAttribute('tabindex', '0');
 
   card.onclick = () => openVodModal(vod);
@@ -1455,12 +1478,12 @@ function createVodCardElement(vod, numberIndex, isTvLayout = false) {
     }
   };
 
-  const posterHtml = vod.cover || vod.logo
-    ? `<img src="${vod.cover || vod.logo}" class="w-12 h-16 object-cover rounded-lg bg-black flex-shrink-0 shadow" onerror="this.onerror=null; this.parentElement.innerHTML='<div class=\\'w-12 h-16 rounded-lg bg-gray-800 flex items-center justify-center text-yellow-500 text-base\\'><i class=\\'fa-solid fa-film\\'></i></div>';">`
-    : `<div class="w-12 h-16 rounded-lg bg-gray-800 flex items-center justify-center text-yellow-500 text-base flex-shrink-0"><i class="fa-solid fa-film"></i></div>`;
+  const posterImg = vod.cover || vod.logo
+    ? `<img src="${vod.cover || vod.logo}" class="w-full h-44 object-cover bg-black group-hover:scale-105 transition duration-300" onerror="this.onerror=null; this.parentElement.innerHTML='<div class=\\'w-full h-44 bg-gray-800 flex items-center justify-center text-yellow-500 text-2xl\\'><i class=\\'fa-solid fa-film\\'></i></div>';">`
+    : `<div class="w-full h-44 bg-gray-800 flex items-center justify-center text-yellow-500 text-2xl"><i class="fa-solid fa-film"></i></div>`;
 
   const ratingHtml = vod.rating && vod.rating > 0
-    ? `<span class="px-1.5 py-0.5 bg-yellow-500/20 text-yellow-400 font-bold text-[10px] rounded"><i class="fa-solid fa-star text-[9px] mr-0.5"></i>${vod.rating}</span>`
+    ? `<span class="absolute top-2 right-2 px-1.5 py-0.5 bg-black/70 backdrop-blur-md text-yellow-400 font-bold text-[10px] rounded-md border border-yellow-500/30"><i class="fa-solid fa-star text-[9px] mr-0.5"></i>${vod.rating}</span>`
     : '';
 
   const yearHtml = vod.year
@@ -1468,23 +1491,16 @@ function createVodCardElement(vod, numberIndex, isTvLayout = false) {
     : '';
 
   card.innerHTML = `
-    <div class="flex items-center gap-3 truncate flex-1 mr-2">
-      <div class="relative flex-shrink-0">
-        ${posterHtml}
-      </div>
-      <div class="truncate flex-1">
-        <h4 class="text-xs font-bold text-gray-100 truncate">${vod.name}</h4>
-        <div class="flex items-center gap-1.5 mt-1">
-          ${ratingHtml}
-          ${yearHtml}
-          <span class="text-[10px] text-gray-400 truncate">${vod.group || 'Película'}</span>
-        </div>
-      </div>
+    <div class="relative w-full overflow-hidden bg-black flex-shrink-0">
+      ${posterImg}
+      ${ratingHtml}
     </div>
-    <div class="flex items-center gap-2 flex-shrink-0">
-      <button class="w-8 h-8 rounded-full bg-yellow-500/20 text-yellow-400 hover:bg-yellow-500 hover:text-black flex items-center justify-center transition active:scale-90" title="Ver detalles y reproducir">
-        <i class="fa-solid fa-play text-xs ml-0.5"></i>
-      </button>
+    <div class="p-2.5 flex flex-col justify-between flex-1">
+      <h4 class="text-xs font-bold text-gray-100 line-clamp-1 group-hover:text-yellow-400 transition">${vod.name}</h4>
+      <div class="flex items-center justify-between mt-2">
+        ${yearHtml}
+        <span class="text-[10px] text-gray-400 truncate">${vod.group || 'Película'}</span>
+      </div>
     </div>
   `;
   return card;
@@ -1493,7 +1509,7 @@ function createVodCardElement(vod, numberIndex, isTvLayout = false) {
 function createSeriesCardElement(series, numberIndex, isTvLayout = false) {
   const card = document.createElement('div');
   card.id = `series-${series.series_id}`;
-  card.className = `p-2.5 bg-gray-900/80 hover:bg-gray-800/80 border border-gray-800/80 hover:border-purple-500/50 rounded-xl flex items-center justify-between cursor-pointer transition active:scale-[0.99]`;
+  card.className = `bg-gray-900/90 hover:bg-gray-800 border border-gray-800 hover:border-purple-500/50 rounded-xl overflow-hidden flex flex-col cursor-pointer transition active:scale-95 group shadow-lg`;
   card.setAttribute('tabindex', '0');
 
   card.onclick = () => openSeriesModal(series);
@@ -1504,12 +1520,12 @@ function createSeriesCardElement(series, numberIndex, isTvLayout = false) {
     }
   };
 
-  const posterHtml = series.cover || series.logo
-    ? `<img src="${series.cover || series.logo}" class="w-12 h-16 object-cover rounded-lg bg-black flex-shrink-0 shadow" onerror="this.onerror=null; this.parentElement.innerHTML='<div class=\\'w-12 h-16 rounded-lg bg-gray-800 flex items-center justify-center text-purple-400 text-base\\'><i class=\\'fa-solid fa-clapperboard\\'></i></div>';">`
-    : `<div class="w-12 h-16 rounded-lg bg-gray-800 flex items-center justify-center text-purple-400 text-base flex-shrink-0"><i class="fa-solid fa-clapperboard"></i></div>`;
+  const posterImg = series.cover || series.logo
+    ? `<img src="${series.cover || series.logo}" class="w-full h-44 object-cover bg-black group-hover:scale-105 transition duration-300" onerror="this.onerror=null; this.parentElement.innerHTML='<div class=\\'w-full h-44 bg-gray-800 flex items-center justify-center text-purple-400 text-2xl\\'><i class=\\'fa-solid fa-clapperboard\\'></i></div>';">`
+    : `<div class="w-full h-44 bg-gray-800 flex items-center justify-center text-purple-400 text-2xl"><i class="fa-solid fa-clapperboard"></i></div>`;
 
   const ratingHtml = series.rating && series.rating > 0
-    ? `<span class="px-1.5 py-0.5 bg-yellow-500/20 text-yellow-400 font-bold text-[10px] rounded"><i class="fa-solid fa-star text-[9px] mr-0.5"></i>${series.rating}</span>`
+    ? `<span class="absolute top-2 right-2 px-1.5 py-0.5 bg-black/70 backdrop-blur-md text-yellow-400 font-bold text-[10px] rounded-md border border-yellow-500/30"><i class="fa-solid fa-star text-[9px] mr-0.5"></i>${series.rating}</span>`
     : '';
 
   const yearHtml = series.year
@@ -1517,23 +1533,16 @@ function createSeriesCardElement(series, numberIndex, isTvLayout = false) {
     : '';
 
   card.innerHTML = `
-    <div class="flex items-center gap-3 truncate flex-1 mr-2">
-      <div class="relative flex-shrink-0">
-        ${posterHtml}
-      </div>
-      <div class="truncate flex-1">
-        <h4 class="text-xs font-bold text-gray-100 truncate">${series.name}</h4>
-        <div class="flex items-center gap-1.5 mt-1">
-          ${ratingHtml}
-          ${yearHtml}
-          <span class="text-[10px] text-gray-400 truncate">${series.group || 'Serie'}</span>
-        </div>
-      </div>
+    <div class="relative w-full overflow-hidden bg-black flex-shrink-0">
+      ${posterImg}
+      ${ratingHtml}
     </div>
-    <div class="flex items-center gap-2 flex-shrink-0">
-      <button class="w-8 h-8 rounded-full bg-purple-500/20 text-purple-400 hover:bg-purple-500 hover:text-white flex items-center justify-center transition active:scale-90" title="Ver episodios">
-        <i class="fa-solid fa-list-ul text-xs"></i>
-      </button>
+    <div class="p-2.5 flex flex-col justify-between flex-1">
+      <h4 class="text-xs font-bold text-gray-100 line-clamp-1 group-hover:text-purple-400 transition">${series.name}</h4>
+      <div class="flex items-center justify-between mt-2">
+        ${yearHtml}
+        <span class="text-[10px] text-gray-400 truncate">${series.group || 'Serie'}</span>
+      </div>
     </div>
   `;
   return card;
@@ -1593,10 +1602,9 @@ function closeVodDetailModal() {
 }
 
 function playCurrentVod() {
-  if (!currentVodItem) return;
+  if (!currentVodItem || !currentVodItem.url) return;
   closeVodDetailModal();
-  playerManager.play(currentVodItem);
-  showToast(`🎬 Reproduciendo: ${currentVodItem.name}`);
+  openMediaInExternalPlayer(currentVodItem.url, currentVodItem.name);
 }
 
 async function openSeriesModal(series) {
@@ -1779,9 +1787,9 @@ function playEpisodeExternal(epId) {
 }
 
 function playSeriesEpisode(ep) {
+  if (!ep || !ep.url) return;
   closeSeriesDetailModal();
-  playerManager.play(ep);
-  showToast(`🍿 Reproduciendo: ${ep.title}`);
+  openMediaInExternalPlayer(ep.url, ep.title || ep.name || 'Episodio');
 }
 
 function closeSeriesDetailModal() {
@@ -2048,6 +2056,62 @@ function acceptLegalDisclaimer() {
   openCountrySelectorModal();
 }
 
+// Lists & Settings Modals
+function focusChannelSearch() {
+  const tvInput = document.getElementById('tv-search-channels');
+  const mobInput = document.getElementById('search-input');
+  if (tvInput && tvInput.offsetParent !== null) {
+    tvInput.focus();
+    tvInput.select();
+  } else if (mobInput) {
+    mobInput.focus();
+    mobInput.select();
+  }
+}
+
+let isAzSorted = false;
+function toggleSortAz() {
+  if (!currentRenderedList || currentRenderedList.length === 0) return;
+  isAzSorted = !isAzSorted;
+  currentRenderedList.sort((a, b) => {
+    const nameA = (a.name || a.title || '').toLowerCase();
+    const nameB = (b.name || b.title || '').toLowerCase();
+    return isAzSorted ? nameA.localeCompare(nameB) : nameB.localeCompare(nameA);
+  });
+  displayedChannelCount = 0;
+  const container = document.getElementById('channels-list');
+  const tvContainer = document.getElementById('tv-channels-list');
+  if (container) container.innerHTML = '';
+  if (tvContainer) tvContainer.innerHTML = '';
+  renderNextChannelBatch();
+  showToast(isAzSorted ? "Canales ordenados A-Z" : "Canales ordenados Z-A");
+}
+
+function openSettingsModal() {
+  const modal = document.getElementById('modal-settings');
+  if (modal) {
+    modal.classList.add('show', 'active');
+  } else {
+    openListsModal();
+  }
+}
+
+function closeSettingsModal() {
+  const modal = document.getElementById('modal-settings');
+  if (modal) modal.classList.remove('show', 'active');
+  closeListsModal();
+}
+
+function openListsModal() {
+  const modal = document.getElementById('modal-lists');
+  if (modal) modal.classList.add('show', 'active');
+}
+
+function closeListsModal() {
+  const modal = document.getElementById('modal-lists');
+  if (modal) modal.classList.remove('show', 'active');
+}
+
 // Sleep Timer Modal
 function initSleepTimerModal() {
   window.openSleepTimerModal = () => {
@@ -2217,4 +2281,18 @@ function initTVRemoteControl() {
       }
     }
   });
+}
+
+// Exportar funciones globales en window para eventos inline y pruebas unitarias
+if (typeof window !== 'undefined') {
+  const globalAppFns = {
+    switchTab, switchAppMode, switchContentType, openSettingsModal, closeSettingsModal,
+    openCountrySelectorModal, closeCountrySelectorModal, importSelectedCountries,
+    selectAllSelectorCountries, filterSelectorRegion, connectXtreamCodes, loadCustomM3UUrl,
+    handleM3UFileSelect, quickConnectAccount, deleteAccount, confirmExitApp,
+    openVodModal, closeVodDetailModal, playCurrentVod, playVodExternal,
+    openSeriesModal, closeSeriesDetailModal, playSeriesEpisode, playEpisodeExternal,
+    openMediaInExternalPlayer, focusChannelSearch, toggleSortAz
+  };
+  Object.assign(window, globalAppFns);
 }
