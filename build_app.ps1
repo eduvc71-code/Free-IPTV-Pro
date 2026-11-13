@@ -20,7 +20,7 @@ if ($IsWindows -or $env:OS -like "*Windows*") {
 Set-Location "../.."
 
 $sourceApk = "free_iptv_app/android/app/build/outputs/apk/debug/app-debug.apk"
-$targetVersionName = "1.0.20"
+$targetVersionName = "1.0.23"
 $outputApkName = "Free-IPTV-Pro-v$targetVersionName.apk"
 
 if (Test-Path $sourceApk) {
