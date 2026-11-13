@@ -1659,6 +1659,18 @@ button:focus {
   padding: 4px 6px;
 }
 
+#tv-col-channels .vod-poster-card {
+  display: flex !important;
+  flex-direction: column !important;
+  height: auto !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  background: #10131d !important;
+  border-radius: 12px !important;
+  border-left: none !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+}
+
 /* Categorias: contador con estilo de badge */
 #tv-categories-list .tv-cat-item > span.xm-cat-count {
   flex-shrink: 0;
