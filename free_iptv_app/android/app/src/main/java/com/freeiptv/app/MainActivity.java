@@ -21,6 +21,9 @@ public class MainActivity extends BridgeActivity {
         this.registerPlugin(ExoPlayerPlugin.class);
         hideSystemUI();
         configureWebView();
+        if (getWindow() != null && getWindow().getDecorView() != null) {
+            getWindow().getDecorView().post(this::hideSystemUI);
+        }
     }
 
     @Override
@@ -28,6 +31,9 @@ public class MainActivity extends BridgeActivity {
         super.onResume();
         hideSystemUI();
         configureWebView();
+        if (getWindow() != null && getWindow().getDecorView() != null) {
+            getWindow().getDecorView().post(this::hideSystemUI);
+        }
     }
 
     @Override
@@ -44,6 +50,22 @@ public class MainActivity extends BridgeActivity {
             if (window == null) return;
 
             window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+            window.addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
+
+            // Permitir pantalla completa real de extremo a extremo cubriendo muescas (cutouts/notches) en horizontal
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+                WindowManager.LayoutParams lp = window.getAttributes();
+                lp.layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
+                window.setAttributes(lp);
+            }
+
+            // Barras de sistema 100% transparentes: la app se extiende de borde a borde y los botones quedan por detrás
+            window.setStatusBarColor(android.graphics.Color.TRANSPARENT);
+            window.setNavigationBarColor(android.graphics.Color.TRANSPARENT);
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                window.setStatusBarContrastEnforced(false);
+                window.setNavigationBarContrastEnforced(false);
+            }
 
             WindowCompat.setDecorFitsSystemWindows(window, false);
             WindowInsetsControllerCompat controller = new WindowInsetsControllerCompat(window, window.getDecorView());
@@ -64,6 +86,9 @@ public class MainActivity extends BridgeActivity {
                 public void onSystemUiVisibilityChange(int visibility) {
                     if ((visibility & View.SYSTEM_UI_FLAG_FULLSCREEN) == 0) {
                         decorView.setSystemUiVisibility(uiOptions);
+                        if (controller != null) {
+                            controller.hide(WindowInsetsCompat.Type.systemBars());
+                        }
                     }
                 }
             });

@@ -251,6 +251,17 @@ class VideoPlayerManager {
   async play(channel, isSilentBg = false) {
     if (!channel || !channel.url) return;
 
+    // REGLA ESTRICTA: El contenido VOD y Series se reproduce EXCLUSIVAMENTE en reproductor externo (VLC / MX)
+    if (channel.isVod || channel.type === 'vod' || channel.series_id || channel.episode_id || (window.currentContentType && window.currentContentType !== 'live')) {
+      console.log('[IPTV] VOD/Series detectado: reproducción EXCLUSIVA en reproductor externo');
+      if (typeof openMediaInExternalPlayer === 'function') {
+        openMediaInExternalPlayer(channel.url, channel.name || channel.title || 'Película / Serie');
+      } else if (window.AndroidNativeApp && typeof window.AndroidNativeApp.openExternalPlayer === 'function') {
+        window.AndroidNativeApp.openExternalPlayer(channel.url, channel.name || channel.title || 'Película / Serie');
+      }
+      return;
+    }
+
     // Guard de reentrada: cada play() invalida los callbacks asincronos del
     // anterior (evita que un play() viejo pise al nuevo -> bucle de estados).
     this._playToken = (this._playToken || 0) + 1;
