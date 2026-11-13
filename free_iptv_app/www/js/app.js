@@ -1257,11 +1257,26 @@ function switchContentType(type) {
   const isVodOrSeries = (type === 'vod' || type === 'series');
   document.body.classList.toggle('vod-mode', isVodOrSeries);
 
-  // Al pasar a Películas o Series, detener inmediatamente el reproductor interno si estaba reproduciendo
-  if (isVodOrSeries && window.playerManager) {
-    try {
-      window.playerManager.stop();
-    } catch (e) {}
+  // Al pasar a Películas o Series, detener y destruir inmediatamente cualquier reproducción de TV en vivo en segundo plano
+  if (isVodOrSeries) {
+    if (window.playerManager) {
+      try {
+        window.playerManager.stopPlayback();
+        window.playerManager.stop();
+        if (window.playerManager.video) {
+          window.playerManager.video.pause();
+          window.playerManager.video.removeAttribute('src');
+          window.playerManager.video.load();
+        }
+        if (window.playerManager.hls) {
+          window.playerManager.hls.destroy();
+          window.playerManager.hls = null;
+        }
+      } catch (e) {}
+    }
+    if (window.exoPlayerPlugin && typeof window.exoPlayerPlugin.stop === 'function') {
+      try { window.exoPlayerPlugin.stop(); } catch (e) {}
+    }
   }
 
   const titleEl = document.getElementById('current-country-title');
