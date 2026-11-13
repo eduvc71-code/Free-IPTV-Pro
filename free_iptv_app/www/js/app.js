@@ -3,6 +3,8 @@
 // Dual Mode Architecture (Modo A: Free vs Modo B: Privadas)
 // 3-Column Landscape TV & Mobile Responsive Virtual Engine
 // =========================================================
+const APP_VERSION = 'v1.0.23';
+
 let playerManager;
 let dataService;
 
@@ -89,6 +91,23 @@ document.addEventListener('DOMContentLoaded', async () => {
   const origScrollHandler = window.initVirtualScrollListeners;
   if (typeof origScrollHandler === 'function') {
     // Se envuelve después de que se defina; se hace abajo en initVirtualScrollListeners
+  }
+
+  // Cero residuos: Limpiar caché y datos previos en instalaciones nuevas para garantizar inicio limpio sin canales precargados
+  if (!localStorage.getItem('free_iptv_clean_start_v4')) {
+    localStorage.removeItem('free_iptv_imported_countries');
+    localStorage.removeItem('free_iptv_active_account');
+    try {
+      Object.keys(localStorage).forEach(k => {
+        if (k.startsWith('free_iptv_') || k.startsWith('countries_') || k.startsWith('playlist_') || k.startsWith('xtream_')) {
+          if (k !== 'free_iptv_legal_accepted' && k !== 'free_iptv_app_mode') {
+            localStorage.removeItem(k);
+          }
+        }
+      });
+      sessionStorage.clear();
+    } catch (e) {}
+    localStorage.setItem('free_iptv_clean_start_v4', 'true');
   }
 
   // Load countries catalog for Mode A
@@ -1467,7 +1486,7 @@ function highlightContentCategory(catName) {
 function createVodCardElement(vod, numberIndex, isTvLayout = false) {
   const card = document.createElement('div');
   card.id = `vod-${vod.stream_id}`;
-  card.className = `bg-gray-900/90 hover:bg-gray-800 border border-gray-800 hover:border-yellow-500/50 rounded-xl overflow-hidden flex flex-col cursor-pointer transition active:scale-95 group shadow-lg`;
+  card.className = `bg-[#10131d] hover:bg-[#1a1f2e] border border-gray-800/80 hover:border-yellow-500/50 rounded-xl overflow-hidden flex flex-col cursor-pointer transition active:scale-95 group shadow-xl`;
   card.setAttribute('tabindex', '0');
 
   card.onclick = () => openVodModal(vod);
@@ -1479,27 +1498,22 @@ function createVodCardElement(vod, numberIndex, isTvLayout = false) {
   };
 
   const posterImg = vod.cover || vod.logo
-    ? `<img src="${vod.cover || vod.logo}" class="w-full h-44 object-cover bg-black group-hover:scale-105 transition duration-300" onerror="this.onerror=null; this.parentElement.innerHTML='<div class=\\'w-full h-44 bg-gray-800 flex items-center justify-center text-yellow-500 text-2xl\\'><i class=\\'fa-solid fa-film\\'></i></div>';">`
-    : `<div class="w-full h-44 bg-gray-800 flex items-center justify-center text-yellow-500 text-2xl"><i class="fa-solid fa-film"></i></div>`;
-
-  const ratingHtml = vod.rating && vod.rating > 0
-    ? `<span class="absolute top-2 right-2 px-1.5 py-0.5 bg-black/70 backdrop-blur-md text-yellow-400 font-bold text-[10px] rounded-md border border-yellow-500/30"><i class="fa-solid fa-star text-[9px] mr-0.5"></i>${vod.rating}</span>`
-    : '';
+    ? `<img src="${vod.cover || vod.logo}" class="w-full h-52 object-cover bg-black group-hover:scale-105 transition duration-300" onerror="this.onerror=null; this.parentElement.innerHTML='<div class=\\'w-full h-52 bg-gray-800 flex items-center justify-center text-yellow-500 text-3xl\\'><i class=\\'fa-solid fa-film\\'></i></div>';">`
+    : `<div class="w-full h-52 bg-gray-800 flex items-center justify-center text-yellow-500 text-3xl"><i class="fa-solid fa-film"></i></div>`;
 
   const yearHtml = vod.year
-    ? `<span class="px-1.5 py-0.5 bg-gray-800 text-gray-300 font-bold text-[10px] rounded">${vod.year}</span>`
+    ? `<span class="text-[10px] text-gray-400 bg-black/40 px-1.5 py-0.5 rounded">${vod.year}</span>`
     : '';
 
   card.innerHTML = `
     <div class="relative w-full overflow-hidden bg-black flex-shrink-0">
       ${posterImg}
-      ${ratingHtml}
     </div>
     <div class="p-2.5 flex flex-col justify-between flex-1">
-      <h4 class="text-xs font-bold text-gray-100 line-clamp-1 group-hover:text-yellow-400 transition">${vod.name}</h4>
-      <div class="flex items-center justify-between mt-2">
+      <h4 class="text-xs font-semibold text-gray-100 line-clamp-2 group-hover:text-yellow-400 transition leading-snug">${vod.name}</h4>
+      <div class="flex items-center justify-between mt-2 pt-1 border-t border-white/5">
         ${yearHtml}
-        <span class="text-[10px] text-gray-400 truncate">${vod.group || 'Película'}</span>
+        <span class="text-[10px] text-gray-400 truncate max-w-[100px]">${vod.group || 'Película'}</span>
       </div>
     </div>
   `;
@@ -1509,7 +1523,7 @@ function createVodCardElement(vod, numberIndex, isTvLayout = false) {
 function createSeriesCardElement(series, numberIndex, isTvLayout = false) {
   const card = document.createElement('div');
   card.id = `series-${series.series_id}`;
-  card.className = `bg-gray-900/90 hover:bg-gray-800 border border-gray-800 hover:border-purple-500/50 rounded-xl overflow-hidden flex flex-col cursor-pointer transition active:scale-95 group shadow-lg`;
+  card.className = `bg-[#10131d] hover:bg-[#1a1f2e] border border-gray-800/80 hover:border-purple-500/50 rounded-xl overflow-hidden flex flex-col cursor-pointer transition active:scale-95 group shadow-xl`;
   card.setAttribute('tabindex', '0');
 
   card.onclick = () => openSeriesModal(series);
@@ -1521,27 +1535,22 @@ function createSeriesCardElement(series, numberIndex, isTvLayout = false) {
   };
 
   const posterImg = series.cover || series.logo
-    ? `<img src="${series.cover || series.logo}" class="w-full h-44 object-cover bg-black group-hover:scale-105 transition duration-300" onerror="this.onerror=null; this.parentElement.innerHTML='<div class=\\'w-full h-44 bg-gray-800 flex items-center justify-center text-purple-400 text-2xl\\'><i class=\\'fa-solid fa-clapperboard\\'></i></div>';">`
-    : `<div class="w-full h-44 bg-gray-800 flex items-center justify-center text-purple-400 text-2xl"><i class="fa-solid fa-clapperboard"></i></div>`;
-
-  const ratingHtml = series.rating && series.rating > 0
-    ? `<span class="absolute top-2 right-2 px-1.5 py-0.5 bg-black/70 backdrop-blur-md text-yellow-400 font-bold text-[10px] rounded-md border border-yellow-500/30"><i class="fa-solid fa-star text-[9px] mr-0.5"></i>${series.rating}</span>`
-    : '';
+    ? `<img src="${series.cover || series.logo}" class="w-full h-52 object-cover bg-black group-hover:scale-105 transition duration-300" onerror="this.onerror=null; this.parentElement.innerHTML='<div class=\\'w-full h-52 bg-gray-800 flex items-center justify-center text-purple-400 text-3xl\\'><i class=\\'fa-solid fa-clapperboard\\'></i></div>';">`
+    : `<div class="w-full h-52 bg-gray-800 flex items-center justify-center text-purple-400 text-3xl"><i class="fa-solid fa-clapperboard"></i></div>`;
 
   const yearHtml = series.year
-    ? `<span class="px-1.5 py-0.5 bg-gray-800 text-gray-300 font-bold text-[10px] rounded">${series.year}</span>`
+    ? `<span class="text-[10px] text-gray-400 bg-black/40 px-1.5 py-0.5 rounded">${series.year}</span>`
     : '';
 
   card.innerHTML = `
     <div class="relative w-full overflow-hidden bg-black flex-shrink-0">
       ${posterImg}
-      ${ratingHtml}
     </div>
     <div class="p-2.5 flex flex-col justify-between flex-1">
-      <h4 class="text-xs font-bold text-gray-100 line-clamp-1 group-hover:text-purple-400 transition">${series.name}</h4>
-      <div class="flex items-center justify-between mt-2">
+      <h4 class="text-xs font-semibold text-gray-100 line-clamp-2 group-hover:text-purple-400 transition leading-snug">${series.name}</h4>
+      <div class="flex items-center justify-between mt-2 pt-1 border-t border-white/5">
         ${yearHtml}
-        <span class="text-[10px] text-gray-400 truncate">${series.group || 'Serie'}</span>
+        <span class="text-[10px] text-gray-400 truncate max-w-[100px]">${series.group || 'Serie'}</span>
       </div>
     </div>
   `;
