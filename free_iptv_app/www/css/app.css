@@ -1814,6 +1814,56 @@ button:focus {
   line-height: 1;
 }
 
+/* VOD & Series Poster Grid Cards (Xtream-Masters style - Vertical Posters) */
+.vod-poster-card {
+  background: #10131d !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  border-radius: 12px !important;
+  overflow: hidden !important;
+  display: flex !important;
+  flex-direction: column !important;
+  cursor: pointer !important;
+  transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease !important;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.5) !important;
+  height: 100% !important;
+}
+
+.vod-poster-card:hover,
+.vod-poster-card:focus {
+  transform: translateY(-4px) !important;
+  border-color: var(--neon-blue) !important;
+  box-shadow: 0 12px 32px rgba(0, 243, 255, 0.2) !important;
+  outline: none !important;
+}
+
+.vod-poster-card .poster-wrapper {
+  position: relative !important;
+  width: 100% !important;
+  height: 190px !important;
+  background: #000 !important;
+  overflow: hidden !important;
+  flex-shrink: 0 !important;
+}
+
+.vod-poster-card .poster-wrapper img {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
+  transition: transform 0.3s ease !important;
+}
+
+.vod-poster-card:hover .poster-wrapper img {
+  transform: scale(1.06) !important;
+}
+
+.vod-poster-card .vod-card-body {
+  padding: 10px !important;
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: space-between !important;
+  flex: 1 !important;
+}
+
 .xm-tab:hover i,
 .xm-tab.active i {
   color: inherit;
