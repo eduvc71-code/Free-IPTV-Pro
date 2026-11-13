@@ -40,18 +40,16 @@ async def download_playlist(url):
             return ""
 
     # Si es una URL web
-    timeout = aiohttp.ClientTimeout(total=15)
+    timeout = aiohttp.ClientTimeout(total=20)
     async with aiohttp.ClientSession(headers=DEFAULT_HEADERS, timeout=timeout) as session:
         try:
-            async with session.get(url) as response:
+            async with session.get(url, ssl=False, allow_redirects=True) as response:
                 if response.status == 200:
                     return await response.text(errors='ignore')
                 else:
                     logger.error(f"Failed to download playlist from {url}: HTTP {response.status}")
-        except aiohttp.ClientError as e:
-            logger.error(f"Client error while downloading playlist from {url}: {e}")
-        except asyncio.TimeoutError:
-            logger.error(f"Timeout while downloading playlist from {url}")
+        except Exception as e:
+            logger.error(f"Error downloading playlist from {url}: {e}")
 
     return ""
 

@@ -43,12 +43,13 @@ class MemoryManager {
     ];
 
     let totalRemoved = 0;
+    let channelRemoved = 0;
 
     containers.forEach(container => {
       if (!container) return;
 
       // No tocar si el contenedor está siendo scrolleado activamente (evitar parpadeo)
-      const isScrolling = container.dataset.scrolling === 'true';
+      const isScrolling = (container.dataset && container.dataset.scrolling === 'true');
 
       // Contar elementos renderizados
       const items = Array.from(container.children);
@@ -65,10 +66,25 @@ class MemoryManager {
         totalRemoved++;
       });
 
+      // Contenedores de canales: notificar para ajustar displayedChannelCount
+      if (container.id === 'channels-list' || container.id === 'tv-channels-list') {
+        channelRemoved += toRemove.length;
+      }
+
       if (totalRemoved > 0) {
         console.log(`[MemoryManager] ${totalRemoved} elementos DOM eliminados de ${container.id || 'contenedor'}`);
       }
     });
+
+    // Notificar al controlador de la app para que descuente los elementos
+    // eliminados del DOM y la paginación virtual no quede desfasada.
+    if (channelRemoved > 0) {
+      try {
+        window.dispatchEvent(new CustomEvent('freeiptv:dom-trimmed', {
+          detail: { removed: channelRemoved }
+        }));
+      } catch (e) {}
+    }
 
     // Forzar garbage collection hint si está disponible
     if (window.gc && typeof window.gc === 'function') {

@@ -5,15 +5,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>Free-IPTV Pro</title>
 
-  <!-- Local & Offline First Stylesheets -->
-  <link rel="stylesheet" href="css/fontawesome.min.css">
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <!-- Font Awesome local (webfonts incluidas en www/webfonts/, funciona sin internet) -->
+  <link rel="stylesheet" href="css/fontawesome.min.css?v=1.6.1.0">
   
   <!-- Tailwind CSS CDN for Utility Classes -->
   <script src="https://cdn.tailwindcss.com"></script>
 
   <!-- Custom Mobile & TV Glassmorphism Theme -->
-  <link rel="stylesheet" href="css/app.css">
+  <link rel="stylesheet" href="css/app.css?v=1.6.1.0">
 </head>
 <body class="bg-[#06080d] text-gray-100 flex flex-col h-screen overflow-hidden">
 
@@ -21,58 +20,34 @@
   <!-- TOP GLOBAL HEADER FOR TV / TABLET LANDSCAPE VIEW           -->
   <!-- ========================================================= -->
   <header id="tv-global-header" class="hidden items-center justify-between px-4 py-2 bg-[#090d16] border-b border-white/10 z-50">
-    <div class="flex items-center gap-3">
-      <div class="flex items-center gap-2 text-white font-black text-sm tracking-wide">
-        <i class="fa-solid fa-tv text-blue-500 text-base"></i>
-        <span>TV en vivo</span>
-      </div>
-      <!-- Mode Switch Pills in TV Header -->
-      <div class="flex items-center bg-black/50 p-0.5 rounded-xl border border-white/10 text-xs">
-        <button id="tv-mode-btn-a" onclick="switchAppMode('A')" class="px-3 py-1 rounded-lg font-bold transition flex items-center gap-1.5 bg-blue-600 text-white">
-          <i class="fa-solid fa-earth-americas text-xs"></i> <span>Modo A: Free</span>
-        </button>
-        <button id="tv-mode-btn-b" onclick="switchAppMode('B')" class="px-3 py-1 rounded-lg font-bold transition flex items-center gap-1.5 text-gray-400 hover:text-white">
-          <i class="fa-solid fa-key text-xs text-yellow-400"></i> <span>Modo B: Privadas</span>
-        </button>
-      </div>
-
-      <!-- Content Type Switcher in TV Header -->
-      <div id="tv-content-type-bar" class="hidden items-center bg-black/50 p-0.5 rounded-xl border border-white/10 text-xs">
-        <button id="tv-btn-content-live" onclick="switchContentType('live')" class="px-3 py-1 rounded-lg font-bold transition flex items-center gap-1.5 bg-yellow-500 text-black shadow">
-          <i class="fa-solid fa-tv text-xs"></i> <span>En Vivo</span>
-        </button>
-        <button id="tv-btn-content-vod" onclick="switchContentType('vod')" class="px-3 py-1 rounded-lg font-bold transition flex items-center gap-1.5 text-gray-400 hover:text-white">
-          <i class="fa-solid fa-film text-xs"></i> <span>Películas</span>
-        </button>
-        <button id="tv-btn-content-series" onclick="switchContentType('series')" class="px-3 py-1 rounded-lg font-bold transition flex items-center gap-1.5 text-gray-400 hover:text-white">
-          <i class="fa-solid fa-clapperboard text-xs"></i> <span>Series</span>
-        </button>
+    <!-- ===== LEFT: LOGO ===== -->
+    <div class="flex items-center gap-4 min-w-0">
+      <div class="xm-logo">
+        <div class="xm-logo-mark"><i class="fa-solid fa-tv"></i></div>
+        <div class="xm-logo-text">
+          <span class="xm-logo-name">Free-IPTV</span>
+          <span class="xm-logo-sub">Pro</span>
+        </div>
       </div>
     </div>
 
-    <!-- Right Header Actions -->
-    <div class="flex items-center gap-3 text-xs">
-      <!-- Auto-Play switch -->
-      <label class="flex items-center gap-1.5 cursor-pointer select-none bg-black/40 border border-white/10 px-2 py-1 rounded-lg" title="Reproducción automática">
-        <span class="text-[10px] text-gray-400 font-semibold"><i class="fa-solid fa-play text-[9px] text-blue-400"></i> Auto-Play</span>
-        <input type="checkbox" id="tv-toggle-autoplay" onchange="toggleAutoplay(this.checked)" class="sr-only peer">
-        <div class="w-6 h-3.5 bg-gray-800 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-gray-400 after:rounded-full after:h-2.5 after:w-2.5 after:transition-all peer-checked:bg-blue-600 peer-checked:after:bg-white relative"></div>
-      </label>
+    <!-- ===== CENTER: TABS con icono (Directo / Peliculas / Series) ===== -->
+    <div id="tv-content-type-bar" class="xm-tabs">
+      <button id="tv-btn-content-live" onclick="switchContentType('live')" class="xm-tab active" title="Directo (en vivo)"><i class="fa-solid fa-satellite-dish"></i></button>
+      <button id="tv-btn-content-vod" onclick="switchContentType('vod')" class="xm-tab" title="Peliculas"><i class="fa-solid fa-film"></i></button>
+      <button id="tv-btn-content-series" onclick="switchContentType('series')" class="xm-tab" title="Series"><i class="fa-solid fa-clapperboard"></i></button>
+    </div>
 
-      <!-- Refresh -->
-      <button onclick="refreshActiveModeList()" class="px-2.5 py-1 bg-white/5 hover:bg-white/10 text-gray-300 rounded-lg font-semibold flex items-center gap-1.5 border border-white/10 active:scale-95 transition">
-        <i class="fa-solid fa-rotate-right text-blue-400 text-xs"></i> <span>Actualizar</span>
-      </button>
-
-      <!-- Sleep Timer -->
-      <button onclick="openSleepTimerModal()" class="p-1.5 text-gray-400 hover:text-purple-400 transition" title="Temporizador de apagado">
-        <i class="fa-solid fa-moon text-sm"></i>
-      </button>
-
-      <!-- Close App -->
-      <button onclick="confirmExitApp()" class="w-7 h-7 bg-red-600/20 hover:bg-red-600 text-red-400 hover:text-white rounded-lg flex items-center justify-center transition active:scale-90" title="Cerrar aplicación">
-        <i class="fa-solid fa-xmark text-sm font-bold"></i>
-      </button>
+    <!-- ===== RIGHT: ACCIONES CIRCULARES ===== -->
+    <div class="xm-actions">
+      <button onclick="switchTab('home')" class="xm-btn" title="Inicio"><i class="fa-solid fa-house"></i></button>
+      <button onclick="focusChannelSearch()" class="xm-btn" title="Buscar canal"><i class="fa-solid fa-magnifying-glass"></i></button>
+      <button onclick="toggleSortAz()" class="xm-btn" title="Ordenar A-Z"><i class="fa-solid fa-arrow-down-a-z"></i></button>
+      <button onclick="refreshActiveModeList()" class="xm-btn" title="Actualizar"><i class="fa-solid fa-rotate-right"></i></button>
+      <button onclick="openSleepTimerModal()" class="xm-btn" title="Temporizador de apagado"><i class="fa-solid fa-moon"></i></button>
+      <button onclick="openListsModal()" class="xm-btn" title="Listas M3U / Xtream"><i class="fa-solid fa-link"></i></button>
+      <button onclick="openSettingsModal()" class="xm-btn" title="Ajustes"><i class="fa-solid fa-gear"></i></button>
+      <button onclick="confirmExitApp()" class="xm-btn danger" title="Cerrar aplicacion"><i class="fa-solid fa-power-off"></i></button>
     </div>
   </header>
 
@@ -84,7 +59,7 @@
     <!-- ========================================== -->
     <!-- VIDEO PLAYER WORKSPACE (Shared)            -->
     <!-- ========================================== -->
-    <div id="player-container" class="relative w-full aspect-video bg-black flex-shrink-0 flex items-center justify-center overflow-hidden">
+    <div id="player-container" class="relative w-full aspect-video bg-black flex-shrink-0 flex items-center justify-center overflow-hidden" onclick="playerManager.togglePlayerControls()">
       <!-- Video Element -->
       <video id="main-video" class="w-full h-full object-contain" playsinline preload="auto"></video>
 
@@ -148,7 +123,7 @@
       </div>
 
       <!-- Player Controls Overlay (Auto-hides) -->
-      <div id="player-overlay" class="player-overlay flex flex-col justify-between p-3 z-30">
+      <div id="player-overlay" class="player-overlay flex flex-col justify-between p-3 z-30 controls-hidden">
         <!-- Top Bar in Player (Safe-area padded) -->
         <div class="flex items-center justify-between">
           <div class="flex items-center gap-2.5 truncate mr-2">
@@ -219,7 +194,8 @@
     </div>
 
     <!-- TV Landscape Below-Player Info Panel -->
-    <div id="tv-player-info-panel" class="hidden flex-col gap-3 p-3 bg-[#0d121e] border-t border-white/10 flex-shrink-0">
+    <!-- v1.6.1.0: oculto permanentemente -> el reproductor ocupa toda la columna 3 -->
+    <div id="tv-player-info-panel" style="display:none!important" class="hidden flex-col gap-3 p-3 bg-[#0d121e] border-t border-white/10 flex-shrink-0">
       <div class="flex items-center justify-between">
         <div class="truncate mr-2">
           <h2 id="tv-hud-channel-title" class="text-sm font-bold text-white truncate">Selecciona un canal</h2>
@@ -235,6 +211,37 @@
           <button onclick="playerManager.toggleFullscreen()" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-md shadow-blue-600/30 active:scale-95 transition">
             <i class="fa-solid fa-expand text-xs"></i> Ampliar
           </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========================================================= -->
+    <!-- EPG PANEL: programa actual + próximos programas            -->
+    <!-- (v1.6.1.0: oculto permanentemente -> el reproductor       -->
+    <!--  ocupa todo el alto de la columna 3)                       -->
+    <!-- ========================================================= -->
+    <div id="tv-epg-panel" style="display:none!important" class="hidden flex-col bg-[#0d121e] border-t border-white/10 flex-shrink-0 overflow-y-auto">
+      <div class="xm-epg">
+        <h3 id="tv-epg-channel-title" class="xm-epg-title">Selecciona un canal</h3>
+
+        <div id="tv-epg-now" class="xm-epg-now" style="display:none;">
+          <span class="xm-epg-badge">AHORA</span>
+          <span id="tv-epg-now-time" class="xm-epg-now-time">--:--</span>
+          <span id="tv-epg-now-title" class="xm-epg-now-title">Sin informacion</span>
+        </div>
+
+        <div id="tv-epg-bar-wrap" style="display:none;">
+          <div class="xm-epg-bar"><div id="tv-epg-bar-fill" class="xm-epg-bar-fill" style="width:0%"></div></div>
+          <div class="xm-epg-times">
+            <span id="tv-epg-start">--:--</span>
+            <span id="tv-epg-end">--:--</span>
+          </div>
+        </div>
+
+        <div id="tv-epg-list" class="xm-epg-list"></div>
+        <div id="tv-epg-empty" class="xm-epg-empty">
+          <i class="fa-solid fa-calendar-day text-xl mb-1 block opacity-40"></i>
+          Sin informacion de programacion disponible
         </div>
       </div>
     </div>
@@ -267,7 +274,7 @@
           <input type="text" id="tv-search-channels" placeholder="Canales de búsqueda" class="custom-input pl-8 py-2 text-xs bg-black/40 border-white/10">
         </div>
         <span id="tv-category-badge" class="text-[10px] font-bold text-blue-400 bg-blue-500/15 border border-blue-500/30 px-2 py-1 rounded-lg truncate max-w-[120px]">
-          CHILE (57)
+          TODOS
         </span>
       </div>
       <!-- Channels Scrollable List -->
@@ -334,7 +341,7 @@
           <!-- Title Bar with Country / Account selector button -->
           <div class="flex items-center justify-between gap-2 px-0.5">
             <button id="btn-mode-context" onclick="openCurrentModeSelector()" class="text-xs font-bold text-gray-200 flex items-center gap-1.5 truncate hover:text-blue-400 transition">
-              <span id="current-country-title">🌎 Seleccionar Países...</span>
+              <span id="current-country-title">ðŸŒŽ Seleccionar Países...</span>
               <i class="fa-solid fa-chevron-right text-[10px] text-gray-500"></i>
             </button>
             <div id="channels-loading-spinner" class="hidden">
@@ -354,7 +361,7 @@
         </div>
       </section>
 
-      <!-- TAB 2: PAÍSES DE AMÉRICA Y ESPAÑA -->
+      <!-- TAB 2: PAÍSES DE AMÃ‰RICA Y ESPAÃ‘A -->
       <section id="view-countries" class="tab-view hidden flex-1 flex flex-col overflow-hidden p-3">
         <div class="mb-3 flex items-center justify-between">
           <div>
@@ -401,8 +408,13 @@
             <i class="fa-solid fa-wand-magic-sparkles text-yellow-400 text-sm"></i>
             <h3 class="text-xs font-bold text-white">Autocompletado Inteligente Xtream / M3U</h3>
           </div>
-          <p class="text-[11px] text-gray-300">Pega tu enlace de suscripción M3U o Xtream y el sistema extraerá Servidor, Puerto, Usuario y Clave automáticamente:</p>
-          <input type="text" id="xtream-smart-url" placeholder="http://servidor:80/get.php?username=...&password=..." class="custom-input border-yellow-500/40">
+          <p class="text-[11px] text-gray-300">Pega tu enlace de suscripción M3U o Xtream y el sistema extraerá Servidor, Puerto, Usuario y Clave automáticamente. Pulsa <strong class="text-yellow-300">Cargar Lista</strong> para cargarlo directamente:</p>
+          <div class="flex items-center gap-2">
+            <input type="text" id="xtream-smart-url" placeholder="http://servidor:80/get.php?username=...&password=..." class="custom-input flex-1 min-w-0 border-yellow-500/40">
+            <button id="btn-load-smart-url" onclick="loadSmartUrl()" class="py-2.5 px-3 bg-yellow-600 hover:bg-yellow-500 text-white font-bold rounded-xl text-xs transition shadow-md shadow-yellow-600/20 active:scale-95 flex items-center gap-1.5 whitespace-nowrap">
+              <i class="fa-solid fa-cloud-arrow-down"></i> Cargar Lista
+            </button>
+          </div>
           
           <div id="xtream-auto-detected-badge" class="hidden text-[11px] text-emerald-400 font-semibold bg-emerald-500/15 border border-emerald-500/30 p-2 rounded-xl flex items-center gap-2">
             <i class="fa-solid fa-circle-check"></i>
@@ -422,8 +434,8 @@
           <div class="bg-gray-900 border border-gray-800 rounded-2xl p-4 space-y-3 shadow-lg">
             <div class="grid grid-cols-3 gap-2.5">
               <div class="col-span-2">
-                <label class="block text-[11px] font-semibold text-gray-300 mb-1">Servidor / Host</label>
-                <input type="text" id="xtream-host" placeholder="http://mallorca.plus" class="custom-input">
+                <label class="block text-[11px] font-semibold text-gray-300 mb-1">Servidor / Host (o Link M3U)</label>
+                <input type="text" id="xtream-host" oninput="handleXtreamSmartPaste(this)" placeholder="http://mallorca.plus o pega tu link m3u aquí" class="custom-input">
               </div>
               <div>
                 <label class="block text-[11px] font-semibold text-gray-300 mb-1">Puerto</label>
@@ -484,7 +496,6 @@
               <button onclick="document.getElementById('input-local-m3u').click()" class="py-2.5 px-3.5 bg-gray-800 hover:bg-gray-700 text-gray-200 border border-gray-700 font-semibold rounded-xl text-xs transition active:scale-95 flex items-center gap-1.5">
                 <i class="fa-solid fa-folder-open text-amber-400"></i> Archivo Local
               </button>
-              <input type="file" id="input-local-m3u" accept=".m3u,.m3u8,.txt" class="hidden" onchange="handleM3UFileSelect(event)">
             </div>
           </div>
         </div>
@@ -494,7 +505,7 @@
           <h3 class="text-xs font-bold text-gray-300 mb-2 flex items-center gap-2">
             <i class="fa-solid fa-list-check text-emerald-400"></i> Listas M3U Guardadas
           </h3>
-          <div id="custom-playlists-container" class="space-y-2">
+          <div id="custom-playlists-container" class="custom-playlists-container space-y-2">
             <!-- Rendered dynamically -->
           </div>
         </div>
@@ -509,21 +520,25 @@
   <!-- BOTTOM WORKSPACE: LIFTED GLASS NAVIGATION  -->
   <!-- ========================================== -->
   <nav class="glass-nav px-4 flex items-center justify-around flex-shrink-0 z-40">
-    <button class="nav-btn text-blue-500 flex flex-col items-center gap-1 active:scale-95 transition" data-tab="home">
+    <button class="nav-btn text-blue-500 flex flex-col items-center gap-1 active:scale-95 transition" data-tab="home" onclick="switchTab('home')">
       <i class="fa-solid fa-house text-base"></i>
       <span class="text-[10px] font-semibold">Inicio</span>
     </button>
-    <button class="nav-btn text-gray-400 flex flex-col items-center gap-1 active:scale-95 transition" data-tab="countries">
+    <button class="nav-btn text-gray-400 flex flex-col items-center gap-1 active:scale-95 transition" data-tab="countries" onclick="switchTab('countries')">
       <i class="fa-solid fa-earth-americas text-base"></i>
       <span class="text-[10px] font-semibold">Países</span>
     </button>
-    <button class="nav-btn text-gray-400 flex flex-col items-center gap-1 active:scale-95 transition" data-tab="favorites">
+    <button class="nav-btn text-gray-400 flex flex-col items-center gap-1 active:scale-95 transition" data-tab="favorites" onclick="switchTab('favorites')">
       <i class="fa-solid fa-star text-base"></i>
       <span class="text-[10px] font-semibold">Favoritos</span>
     </button>
-    <button class="nav-btn text-gray-400 flex flex-col items-center gap-1 active:scale-95 transition" data-tab="xtream">
+    <button class="nav-btn text-gray-400 flex flex-col items-center gap-1 active:scale-95 transition" data-tab="xtream" onclick="switchTab('xtream')">
       <i class="fa-solid fa-key text-base"></i>
       <span class="text-[10px] font-semibold">Privadas</span>
+    </button>
+    <button class="nav-btn text-gray-400 flex flex-col items-center gap-1 active:scale-95 transition" data-tab="settings" onclick="openSettingsModal()">
+      <i class="fa-solid fa-gear text-base"></i>
+      <span class="text-[10px] font-semibold">Ajustes</span>
     </button>
   </nav>
 
@@ -557,6 +572,27 @@
         <p class="text-gray-400">
           Usted como usuario es el único responsable de la legalidad de los contenidos y transmisiones que decida reproducir o incorporar en la aplicación.
         </p>
+
+        <div class="p-3 bg-blue-950/40 border border-blue-500/30 rounded-xl">
+          <div class="text-[10px] font-bold text-blue-300 mb-1.5">
+            <i class="fa-solid fa-scale-balanced mr-1"></i> LICENCIAS DE TERCEROS
+          </div>
+          <p class="text-[10px] leading-relaxed">
+            Esta aplicación incluye el módulo <strong>FFmpeg</strong> (váa la extensión
+            <em>media3-ffmpeg-decoder</em> de AndroidX Media3), bajo licencia
+            <strong>LGPL 2.1</strong>, que aporta los decodificadores software de audio
+            (E-AC-3 / AC-3 / TrueHD / DTS / FLAC / Opus). El código fuente de FFmpeg y de la
+            extensión está disponible en
+            <span class="text-blue-300">github.com/androidx/media</span> y
+            <span class="text-blue-300">ffmpeg.org</span>.
+          </p>
+          <p class="text-[10px] leading-relaxed mt-1.5">
+            También se utiliza <strong>AndroidX Media3 (ExoPlayer)</strong> bajo licencia Apache 2.0
+            y <strong>Tailwind CSS</strong> bajo licencia MIT. La extensión FFmpeg se distribuye
+            precompilada por el proyecto Jellyfin (org.jellyfin.media3) como
+            <em>media3-ffmpeg-decoder</em>.
+          </p>
+        </div>
       </div>
 
       <button onclick="acceptLegalDisclaimer()" class="w-full py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl text-xs transition active:scale-95 flex items-center justify-center gap-2 shadow-lg shadow-blue-600/30">
@@ -566,8 +602,65 @@
   </div>
 
   <!-- ========================================== -->
-  <!-- MODAL: SELECCIÓN DE PAÍSES Y LISTAS        -->
+  <!-- MODAL: SELECCIÃ“N DE PAÍSES Y LISTAS        -->
   <!-- ========================================== -->
+  <!-- Input de archivo M3U a nivel de BODY (accesible desde cualquier layout, -->
+  <!-- incluida la vista oculta "Privadas" del layout TV) -->
+  <input type="file" id="input-local-m3u" accept=".m3u,.m3u8,.txt" class="hidden" onchange="handleM3UFileSelect(event)">
+
+  <!-- ========================================== -->
+  <!-- MODAL: LISTAS EXTERNAS M3U / XTREAM             -->
+  <!-- Acceso en layout TV/landscape (>=760px), donde -->
+  <!-- la pestana "Privadas" esta oculta             -->
+  <!-- ========================================== -->
+  <div id="modal-lists" class="modal-overlay" style="z-index: 95;" onclick="closeListsModal()">
+    <div class="modal-sheet p-4 max-w-lg mx-auto flex flex-col max-h-[85vh]" onclick="event.stopPropagation()">
+      <div class="flex items-center justify-between pb-3 border-b border-gray-800 flex-shrink-0">
+        <div class="min-w-0">
+          <h2 class="text-sm font-bold text-white flex items-center gap-2">
+            <i class="fa-solid fa-link text-emerald-400"></i> Listas Externas (M3U / Xtream)
+          </h2>
+          <p class="text-[10px] text-gray-400">Pega el enlace de tu lista y carga los canales al instante</p>
+        </div>
+        <button onclick="closeListsModal()" class="text-gray-400 hover:text-white p-1 flex-shrink-0">
+          <i class="fa-solid fa-xmark text-base"></i>
+        </button>
+      </div>
+
+      <div class="py-3 space-y-3 overflow-y-auto flex-1">
+        <!-- Enlace inteligente (M3U o Xtream) -->
+        <div class="bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-3 space-y-2">
+          <label class="block text-[11px] font-semibold text-yellow-300">Enlace de la lista</label>
+          <input type="text" id="tv-list-url" placeholder="http://servidor/lista.m3u  |  http://servidor:80/get.php?username=..." class="custom-input border-yellow-500/40">
+          <button id="btn-tv-load-list" onclick="loadSmartUrl(document.getElementById('tv-list-url').value)" class="w-full py-2.5 bg-yellow-600 hover:bg-yellow-500 text-white font-bold rounded-xl text-xs transition shadow-md shadow-yellow-600/20 active:scale-95 flex items-center justify-center gap-2">
+            <i class="fa-solid fa-cloud-arrow-down"></i> Cargar Lista
+          </button>
+          <p class="text-[10px] text-gray-400 leading-relaxed">
+            Detecta solo el tipo de enlace. Si es <strong class="text-yellow-300">Xtream Codes</strong> rellena Servidor, Puerto, Usuario y Clave y conecta. Si es una <strong class="text-yellow-300">lista M3U</strong> la carga directamente como canal privado.
+          </p>
+        </div>
+
+        <!-- Archivo local -->
+        <button onclick="document.getElementById('input-local-m3u').click()" class="w-full py-2.5 bg-gray-800 hover:bg-gray-700 text-gray-200 border border-gray-700 font-semibold rounded-xl text-xs transition active:scale-95 flex items-center justify-center gap-1.5">
+          <i class="fa-solid fa-folder-open text-amber-400"></i> Cargar Archivo Local (.m3u)
+        </button>
+
+        <!-- Listas guardadas -->
+        <div>
+          <h3 class="text-xs font-bold text-gray-300 mb-2 flex items-center gap-2">
+            <i class="fa-solid fa-list-check text-emerald-400"></i> Listas M3U Guardadas
+          </h3>
+          <div id="tv-custom-playlists-container" class="custom-playlists-container space-y-2"></div>
+        </div>
+      </div>
+      <div class="pt-3 border-t border-gray-800">
+        <button onclick="closeListsModal()" class="w-full py-2.5 bg-gray-800 hover:bg-gray-700 text-white font-bold rounded-xl text-xs transition active:scale-95">
+          Cerrar
+        </button>
+      </div>
+    </div>
+  </div>
+
   <div id="modal-country-selector" class="modal-overlay" style="z-index: 90;" onclick="closeCountrySelectorModal()">
     <div class="modal-sheet p-4 max-w-lg mx-auto flex flex-col h-[85vh]" onclick="event.stopPropagation()">
       <div class="flex items-center justify-between pb-3 border-b border-gray-800 flex-shrink-0">
@@ -616,7 +709,7 @@
       <div class="flex items-center justify-between py-1.5 px-1 text-[11px] text-gray-400 flex-shrink-0">
         <div class="flex items-center gap-2">
           <button onclick="selectAllSelectorCountries(true)" class="text-blue-400 hover:underline font-semibold">Marcar Todos</button>
-          <span>•</span>
+          <span>⬢</span>
           <button onclick="selectAllSelectorCountries(false)" class="text-gray-400 hover:underline">Desmarcar</button>
         </div>
         <span id="selector-selected-count" class="font-bold text-gray-200">0 seleccionados</span>
@@ -731,6 +824,12 @@
           <span>Limpiar</span>
         </button>
       </div>
+      <div class="pt-2 flex-shrink-0">
+        <button onclick="showAudioDiagnostics()" class="w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs transition shadow-lg shadow-emerald-600/30 active:scale-95 flex items-center justify-center gap-2">
+          <i class="fa-solid fa-volume-high"></i>
+          <span>Diagnóstico de Audio (renderer + decoder real)</span>
+        </button>
+      </div>
     </div>
   </div>
 
@@ -776,13 +875,9 @@
       </div>
 
       <div class="pt-3 pb-8 mb-2 border-t border-gray-800 flex items-center gap-2 flex-shrink-0">
-        <button id="btn-play-vod" onclick="playCurrentVod()" class="flex-1 py-3 bg-yellow-500 hover:bg-yellow-400 text-black font-extrabold rounded-xl text-xs transition shadow-lg shadow-yellow-500/25 active:scale-95 flex items-center justify-center gap-2">
-          <i class="fa-solid fa-play text-sm"></i>
-          <span>Reproductor Interno</span>
-        </button>
-        <button onclick="playVodExternal()" class="flex-1 py-3 bg-orange-600 hover:bg-orange-500 text-white font-extrabold rounded-xl text-xs transition shadow-lg shadow-orange-600/25 active:scale-95 flex items-center justify-center gap-2" title="Reproducir en VLC / MX Player con audio Dolby EAC3 completo">
-          <i class="fa-solid fa-arrow-up-right-from-square text-sm"></i>
-          <span>VLC / Externo</span>
+        <button id="btn-play-vod" onclick="playCurrentVod()" class="w-full py-3.5 bg-yellow-500 hover:bg-yellow-400 text-black font-extrabold rounded-xl text-sm transition shadow-lg shadow-yellow-500/25 active:scale-95 flex items-center justify-center gap-2">
+          <i class="fa-solid fa-play text-base"></i>
+          <span>Reproducir Película</span>
         </button>
       </div>
     </div>
@@ -857,9 +952,21 @@
             <i class="fa-solid fa-volume-high text-xs text-blue-400"></i>
             <h4 class="text-xs font-bold text-gray-300 uppercase tracking-wider">Pistas de Audio</h4>
           </div>
+          <div id="player-engine-diag" class="mb-1.5"></div>
           <div id="player-audio-tracks-list" class="space-y-1.5">
             <!-- Rendered dynamically -->
           </div>
+        </div>
+
+        <!-- Volumen del reproductor (WebView y ExoPlayer nativo) -->
+        <div>
+          <div class="flex items-center gap-2 mb-2">
+            <i class="fa-solid fa-volume-high text-xs text-emerald-400"></i>
+            <h4 class="text-xs font-bold text-gray-300 uppercase tracking-wider">Volumen</h4>
+            <span id="player-volume-value" class="ml-auto text-[10px] font-bold text-blue-400">100%</span>
+          </div>
+          <input type="range" id="player-volume-slider" min="0" max="100" value="100" step="5" class="w-full accent-blue-500" oninput="playerManager.onVolumeSlider(this.value)">
+          <p class="text-[10px] text-gray-500 mt-1">Se aplica al reproductor interno (navegador y ExoPlayer nativo).</p>
         </div>
 
         <!-- Subtítulos -->
@@ -897,10 +1004,10 @@
   </div>
 
   <!-- Native Capacitor Bridge Script (Critical for Native HTTP & CORS bypass) -->
-  <script src="capacitor.js"></script>
+  <script src="capacitor.js?v=1.6.1.0"></script>
 
   <!-- Scripts: Local HLS with CDN fallback -->
-  <script src="js/hls.min.js"></script>
+  <script src="js/hls.min.js?v=1.6.1.0"></script>
   <script>
     if (typeof Hls === 'undefined') {
       document.write('<script src="https://cdn.jsdelivr.net/npm/hls.js@latest"><\/script>');
@@ -910,26 +1017,28 @@
   <!-- FASE 3: Nueva Arquitectura Multiplataforma                -->
   <!-- Orden de carga importa: cada módulo depende del anterior  -->
   <!-- ========================================================= -->
-  <script src="js/platform/PlatformDetector.js"></script>
-  <script src="js/platform/MediaCompatibility.js"></script>
-  <script src="js/platform/AudioTrackManager.js"></script>
-  <script src="js/platform/ExternalPlayer.js"></script>
-  <script src="js/platform/ExoPlayerPlugin.js"></script>
-  <script src="js/platform/PlaybackManager.js"></script>
+  <script src="js/platform/PlatformDetector.js?v=1.6.1.0"></script>
+  <script src="js/platform/MediaCompatibility.js?v=1.6.1.0"></script>
+  <script src="js/platform/AudioTrackManager.js?v=1.6.1.0"></script>
+  <script src="js/platform/ExternalPlayer.js?v=1.6.1.0"></script>
+  <script src="js/platform/ExoPlayerPlugin.js?v=1.6.1.0"></script>
+  <script src="js/platform/EPGManager.js?v=1.6.1.0"></script>
+  <script src="js/platform/PlaybackManager.js?v=1.6.1.0"></script>
 
   <!-- ========================================================= -->
   <!-- FASE 6: Android TV / Fire TV - Navegación DPAD y Foco     -->
   <!-- ========================================================= -->
-  <script src="js/platform/TVNavigation.js"></script>
+  <script src="js/platform/TVNavigation.js?v=1.6.1.0"></script>
 
   <!-- ========================================================= -->
-  <!-- FASE 7: Seguridad y Rendimiento                           -->
+  <!-- FASE 7: Seguridad, Rendimiento y Logging Silencioso         -->
   <!-- ========================================================= -->
-  <script src="js/platform/SecuritySanitizer.js"></script>
-  <script src="js/platform/MemoryManager.js"></script>
+  <script src="js/iptv-logger.js?v=1.6.1.0"></script>
+  <script src="js/platform/SecuritySanitizer.js?v=1.6.1.0"></script>
+  <script src="js/platform/MemoryManager.js?v=1.6.1.0"></script>
 
-  <script src="js/player.js"></script>
-  <script src="js/xtream.js"></script>
-  <script src="js/app.js"></script>
+  <script src="js/player.js?v=1.6.1.0"></script>
+  <script src="js/xtream.js?v=1.6.1.0"></script>
+  <script src="js/app.js?v=1.6.1.0"></script>
 </body>
 </html>
