@@ -32,21 +32,48 @@ class SecuritySanitizer {
     const origWarn = console.warn;
     const origError = console.error;
 
-    const sanitizeArgs = (args) => {
-      return args.map(arg => {
-        if (typeof arg === 'string') return this.sanitizeString(arg);
-        if (typeof arg === 'object' && arg !== null) {
-          try {
-            return JSON.parse(JSON.stringify(arg, (key, value) => {
-              if (typeof value === 'string') return this.sanitizeString(value);
-              return value;
-            }));
-          } catch (e) {
-            return arg;
-          }
-        }
+    const sanitizeArg = (arg) => {
+      if (typeof arg === 'string') return this.sanitizeString(arg);
+      if (arg === null || arg === undefined || typeof arg === 'number' || typeof arg === 'boolean') {
         return arg;
-      });
+      }
+      if (arg instanceof Error) {
+        return this.sanitizeString(arg.message || String(arg));
+      }
+      // Evitar serializar nodos del DOM, eventos o Window que causan bloqueo y excepciones circulares
+      if (typeof arg === 'object') {
+        if (arg.nodeType || arg.window || typeof arg.preventDefault === 'function') {
+          return `[${arg.constructor ? arg.constructor.name : 'Object'}]`;
+        }
+        // Sanitización superficial rápida sin recursión infinita
+        try {
+          const shallow = Array.isArray(arg) ? [] : {};
+          const keys = Object.keys(arg);
+          const limit = Math.min(keys.length, 25); // límite de seguridad
+          for (let i = 0; i < limit; i++) {
+            const k = keys[i];
+            const v = arg[k];
+            const safeKey = k.toLowerCase();
+            if (safeKey.includes('pass') || safeKey.includes('token') || safeKey.includes('secret') || safeKey.includes('pwd')) {
+              shallow[k] = this.redacted;
+            } else if (typeof v === 'string') {
+              shallow[k] = this.sanitizeString(v);
+            } else if (typeof v === 'number' || typeof v === 'boolean' || v === null) {
+              shallow[k] = v;
+            } else {
+              shallow[k] = typeof v;
+            }
+          }
+          return shallow;
+        } catch {
+          return '[Object]';
+        }
+      }
+      return arg;
+    };
+
+    const sanitizeArgs = (args) => {
+      return args.map(arg => sanitizeArg(arg));
     };
 
     console.log = (...args) => {

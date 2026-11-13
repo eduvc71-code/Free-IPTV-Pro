@@ -68,15 +68,18 @@ async def load_saved_list_handler(request):
     safe_name = os.path.basename(filename)
     path = os.path.join(OUTPUT_DIR, safe_name)
     if not os.path.exists(path):
-        return web.json_response({"error": "Archivo no encontrado"}, status=404)
+        return web.json_response({"success": False, "error": "Archivo no encontrado"}, status=404)
 
     with open(path, 'r', encoding='utf-8', errors='ignore') as f:
         content = f.read()
 
     playlist = Playlist(content)
+    channels = playlist.get_channels()
     return web.json_response({
+        "success": True,
         "name": safe_name,
-        "channels": playlist.get_channels()
+        "total": len(channels),
+        "channels": channels
     })
 
 
@@ -109,11 +112,12 @@ async def load_playlist_handler(request):
         content = data.get('content', '')
 
     if not content:
-        return web.json_response({"error": "No se pudo obtener la lista de canales"}, status=400)
+        return web.json_response({"success": False, "error": "No se pudo obtener la lista de canales"}, status=400)
 
     playlist = Playlist(content)
     channels = playlist.get_channels()
     return web.json_response({
+        "success": True,
         "name": name,
         "total": len(channels),
         "channels": channels

@@ -32,6 +32,9 @@
 </head>
 <body class="bg-gray-950 text-gray-100 flex flex-col h-screen overflow-hidden select-none font-sans">
 
+    <!-- Toast Notification Container -->
+    <div id="toast-container" class="fixed bottom-5 right-5 z-50 flex flex-col gap-2 pointer-events-none"></div>
+
     <!-- Top Navigation Bar -->
     <header class="bg-gray-900 border-b border-gray-800 px-5 py-3 flex items-center justify-between shadow-md z-10 flex-shrink-0">
         <div class="flex items-center space-x-3">
@@ -318,7 +321,12 @@
                     body: JSON.stringify({ source_type: 'country', country: countryName, url: url })
                 });
                 const data = await res.json();
+                if (!data.success || data.error) {
+                    alert(data.error || "Error al cargar la lista de " + countryName);
+                    return;
+                }
                 renderChannels(data.name, data.channels);
+                showToast(`¡Lista "${data.name}" cargada con éxito! (${data.total || data.channels.length} canales)`);
             } catch (e) {
                 alert("Error al cargar la lista de " + countryName);
             }
@@ -351,20 +359,24 @@
                     })
                 });
                 const data = await res.json();
-                if (data.error) {
-                    alert(data.error);
+                if (!data.success || data.error) {
+                    alert(data.error || "Error conectando al panel Xtream Codes.");
                     return;
                 }
                 renderChannels(data.name, data.channels);
+                showToast(`¡Panel Xtream "${data.name}" conectado con éxito! (${data.total || data.channels.length} canales)`);
             } catch (e) {
                 alert("Error conectando al panel Xtream Codes.");
             }
         }
 
         async function submitUrl() {
-            const url = document.getElementById('custom-url').value.trim();
+            const urlInput = document.getElementById('custom-url').value.trim();
             const name = document.getElementById('custom-name').value.trim() || "Lista Externa";
-            if (!url) return;
+            if (!urlInput) {
+                alert("Por favor ingresa un enlace o URL válida.");
+                return;
+            }
 
             closeModal('modal-url');
             showLoadingList(name);
@@ -372,12 +384,17 @@
                 const res = await fetch('/api/load-playlist', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ source_type: 'url', url: url, name: name })
+                    body: JSON.stringify({ source_type: 'url', url: urlInput, name: name })
                 });
                 const data = await res.json();
+                if (!data.success || data.error) {
+                    alert(data.error || "No se pudo cargar la lista externa. Verifica que el enlace sea accesible y público.");
+                    return;
+                }
                 renderChannels(data.name, data.channels);
+                showToast(`¡Lista externa "${data.name}" cargada con éxito! (${data.total || data.channels.length} canales)`);
             } catch (e) {
-                alert("Error al cargar la URL externa.");
+                alert("Error de conexión al cargar la URL externa.");
             }
         }
 
@@ -416,10 +433,33 @@
             try {
                 const res = await fetch('/api/load-saved/' + encodeURIComponent(filename));
                 const data = await res.json();
+                if (!data.success || data.error) {
+                    alert(data.error || "Error cargando archivo guardado.");
+                    return;
+                }
                 renderChannels(data.name, data.channels);
+                showToast(`¡Lista guardada "${data.name}" cargada con éxito! (${data.total || data.channels.length} canales)`);
             } catch (e) {
                 alert("Error cargando archivo guardado.");
             }
+        }
+
+        function showToast(message, type = 'success') {
+            const container = document.getElementById('toast-container');
+            if (!container) return;
+            const toast = document.createElement('div');
+            const bgClass = type === 'success' ? 'bg-emerald-600 border-emerald-500' : 'bg-red-600 border-red-500';
+            const icon = type === 'success' ? 'fa-circle-check' : 'fa-circle-exclamation';
+            toast.className = `${bgClass} text-white px-4 py-3 rounded-xl shadow-2xl border text-xs font-semibold flex items-center gap-3 pointer-events-auto transform translate-y-2 opacity-0 transition-all duration-300`;
+            toast.innerHTML = `<i class="fa-solid ${icon} text-base"></i><span>${message}</span>`;
+            container.appendChild(toast);
+            setTimeout(() => {
+                toast.classList.remove('translate-y-2', 'opacity-0');
+            }, 10);
+            setTimeout(() => {
+                toast.classList.add('translate-y-2', 'opacity-0');
+                setTimeout(() => toast.remove(), 300);
+            }, 3500);
         }
 
         function showLoadingList(title) {
@@ -617,9 +657,32 @@
             }
         }
 
-        // Cargar por defecto el primer país al iniciar
+        // Pantalla de bienvenida limpia y moderna (sin precarga forzada de países)
         window.onload = () => {
-            loadCountriesList();
+            document.getElementById('playlist-title').innerText = "BIENVENIDO";
+            document.getElementById('channel-counter').innerText = "Listo para iniciar";
+            document.getElementById('channels-container').innerHTML = `
+                <div class="h-full flex flex-col items-center justify-center p-6 text-center text-gray-400 gap-4">
+                    <div class="w-16 h-16 bg-blue-600/20 border border-blue-500/30 rounded-2xl flex items-center justify-center text-blue-400 text-2xl shadow-xl">
+                        <i class="fa-solid fa-satellite-dish"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-sm font-bold text-white mb-1">World IPTV Pro</h3>
+                        <p class="text-xs text-gray-400 max-w-xs leading-relaxed">Selecciona un país de América, conecta tu panel Xtream Codes o carga una URL M3U externa.</p>
+                    </div>
+                    <div class="flex flex-col gap-2.5 w-full max-w-xs mt-2">
+                        <button onclick="openModal('modal-americas')" class="py-3 px-4 bg-gray-900 hover:bg-gray-800 active:bg-gray-700 text-white rounded-xl border border-gray-800 text-xs font-semibold flex items-center justify-center gap-2.5 transition shadow-sm">
+                            <i class="fa-solid fa-earth-americas text-blue-400"></i> Países de América
+                        </button>
+                        <button onclick="openModal('modal-xtream')" class="py-3 px-4 bg-gray-900 hover:bg-gray-800 active:bg-gray-700 text-white rounded-xl border border-gray-800 text-xs font-semibold flex items-center justify-center gap-2.5 transition shadow-sm">
+                            <i class="fa-solid fa-key text-yellow-400"></i> Xtream Codes
+                        </button>
+                        <button onclick="openModal('modal-url')" class="py-3 px-4 bg-gray-900 hover:bg-gray-800 active:bg-gray-700 text-white rounded-xl border border-gray-800 text-xs font-semibold flex items-center justify-center gap-2.5 transition shadow-sm">
+                            <i class="fa-solid fa-link text-emerald-400"></i> URL Externa (.m3u)
+                        </button>
+                    </div>
+                </div>
+            `;
         };
     </script>
 </body>

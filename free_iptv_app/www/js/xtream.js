@@ -87,6 +87,46 @@ class IPTVDataService {
     if (!url) throw new Error("La URL está vacía.");
     url = url.trim();
 
+    // 0. A: Local Asset (data/americas_countries.json, data/playlists/...) via Native AssetManager
+    if (!url.startsWith('http://') && !url.startsWith('https://')) {
+      if (window.AndroidNativeApp && typeof window.AndroidNativeApp.readAsset === 'function') {
+        try {
+          const assetData = window.AndroidNativeApp.readAsset(url);
+          if (assetData && assetData.length > 5) {
+            console.log("[IPTV] Archivo local cargado via AndroidNativeApp.readAsset:", url);
+            return assetData;
+          }
+        } catch (assetErr) {
+          console.warn("[IPTV] Error leyendo asset nativo:", assetErr);
+        }
+      }
+      // Fallback local fetch
+      try {
+        const localResp = await fetch(url);
+        if (localResp.ok) {
+          const lTxt = await localResp.text();
+          if (lTxt && lTxt.length > 5) return lTxt;
+        }
+      } catch (lErr) {}
+    }
+
+    // 0. B: Remote URL via Native Android HTTP (Zero CORS, auto redirects, full SSL)
+    if (url.startsWith('http://') || url.startsWith('https://')) {
+      if (window.AndroidNativeApp && typeof window.AndroidNativeApp.fetchUrl === 'function') {
+        try {
+          console.log("[IPTV] Conectando via AndroidNativeApp.fetchUrl:", url);
+          const nativeRes = window.AndroidNativeApp.fetchUrl(url, 'IPTVSmartersPro/3.1.5.1 (Linux; Android 14) Mobile', 25000);
+          if (nativeRes && !nativeRes.startsWith("ERROR:")) {
+            console.log("[IPTV] ¡Respuesta nativa Android obtenida con éxito! (" + nativeRes.length + " bytes)");
+            return nativeRes;
+          }
+          console.warn("[IPTV] AndroidNativeApp.fetchUrl retorno:", nativeRes);
+        } catch (nativeAppErr) {
+          console.warn("[IPTV] Fallo AndroidNativeApp.fetchUrl:", nativeAppErr);
+        }
+      }
+    }
+
     // 1. Check if Capacitor Native HTTP is available (Bypasses CORS completely)
     const cap = window.Capacitor;
     const capHttp = cap?.Plugins?.CapacitorHttp || window.CapacitorHttp;
@@ -165,7 +205,15 @@ class IPTVDataService {
     url = url.trim();
     if (!url.startsWith('http://') && !url.startsWith('https://')) return false;
 
-    // 1. Try Capacitor Native Http
+    // 0. Try Android Native pingUrl (Instant HEAD/GET, zero CORS, cross-protocol)
+    if (window.AndroidNativeApp && typeof window.AndroidNativeApp.pingUrl === 'function') {
+      try {
+        const alive = window.AndroidNativeApp.pingUrl(url, 4000);
+        if (alive) return true;
+      } catch (e) {}
+    }
+
+    // 1. Try Capacitor Native Http (sin CORS)
     const cap = window.Capacitor;
     const capHttp = cap?.Plugins?.CapacitorHttp || window.CapacitorHttp;
     if (capHttp && typeof capHttp.request === 'function') {
@@ -178,24 +226,24 @@ class IPTVDataService {
               'User-Agent': 'VLC/3.0.18 LibVLC/3.0.18',
               'Range': 'bytes=0-1000'
             },
-            connectTimeout: 2500,
-            readTimeout: 2500
+            connectTimeout: 6000,
+            readTimeout: 6000
           }),
-          new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 3000))
+          new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 8000))
         ]);
         if (resp && resp.status >= 200 && resp.status < 400) {
           return true;
         }
-        return false;
+        // Status no valido: NO abandonar aqui, se intenta el fallback de fetch.
       } catch {
-        return false;
+        // Error nativo (timeout / red): se intenta el fallback de fetch.
       }
     }
 
     // 2. Browser Direct Fetch with HEAD or Range
     try {
       const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 2000);
+      const timer = setTimeout(() => controller.abort(), 6000);
       const resp = await fetch(url, {
         method: 'HEAD',
         headers: { 'Accept': '*/*' },
@@ -209,7 +257,7 @@ class IPTVDataService {
     // 3. Fallback no-cors probe
     try {
       const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 2000);
+      const timer = setTimeout(() => controller.abort(), 6000);
       await fetch(url, {
         method: 'GET',
         mode: 'no-cors',
@@ -306,7 +354,9 @@ class IPTVDataService {
   async filterActiveStreamsProgressive(channels, onFirstBatchReady = null, onProgress = null) {
     if (!channels || channels.length === 0) return [];
     const valid = [];
-    const batchSize = 8;
+    const batchSize = 12;
+    const MAX_VERIFY_MS = 25000;   // nunca bloquear la carga mas de 25s
+    const startedAt = Date.now();
     let checkedCount = 0;
     let firstBatchDispatched = false;
 
@@ -329,6 +379,22 @@ class IPTVDataService {
 
     const remaining = channels.slice(12);
     for (let i = 0; i < remaining.length; i += batchSize) {
+      // Limite de tiempo: si se agota, se aceptan los canales sin verificar
+      // para no dejar la app cargando indefinidamente.
+      if (Date.now() - startedAt > MAX_VERIFY_MS) {
+        const notChecked = remaining.slice(i);
+        console.warn('[IPTV] Limite de verificacion alcanzado; se aceptan ' + notChecked.length + ' canales sin verificar.');
+        valid.push(...notChecked);
+        if (typeof onFirstBatchReady === 'function' && !firstBatchDispatched) {
+          firstBatchDispatched = true;
+          onFirstBatchReady(valid.slice());
+        }
+        if (typeof onProgress === 'function') {
+          onProgress(valid.slice(), checkedCount + notChecked.length, channels.length, true);
+        }
+        return valid;
+      }
+
       const batch = remaining.slice(i, i + batchSize);
       const results = await Promise.all(batch.map(async (ch) => {
         const isAlive = await this.pingStreamUrl(ch.url);
@@ -356,6 +422,19 @@ class IPTVDataService {
 
     if (typeof onProgress === 'function') {
       onProgress(valid.slice(), checkedCount, channels.length, true);
+    }
+
+    // Ningun canal supero la verificacion de red (servidor lento, bloqueado o
+    // sin soporte de Range). En ese caso se devuelven TODOS los canales:
+    // es preferible mostrarlos y que el usuario vea cuales funcionan al
+    // reproducir, antes que dejar la grilla completamente vacia.
+    if (valid.length === 0 && channels.length > 0) {
+      console.warn('[IPTV] Ningun canal supero la verificacion de red. Se muestran todos.');
+      if (typeof onFirstBatchReady === 'function') onFirstBatchReady(channels.slice());
+      if (typeof onProgress === 'function') {
+        onProgress(channels.slice(), checkedCount, channels.length, true);
+      }
+      return channels;
     }
 
     return valid;
@@ -531,7 +610,7 @@ class IPTVDataService {
   // =========================================================
   getLiveStreamUrl(cleanServer, username, password, streamId, format) {
     const ext = (format === 'm3u8' || format === 'ts') ? format : 'ts';
-    return `${cleanServer}/live/${encodeURIComponent(username)}/${encodeURIComponent(password)}/${streamId}.${ext}`;
+    return `${cleanServer}/live/${username}/${password}/${streamId}.${ext}`;
   }
 
   saveAccount(server, username, password, format = 'ts') {
@@ -644,7 +723,7 @@ class IPTVDataService {
       if (Array.isArray(data)) {
         return data.map(item => {
           const ext = item.container_extension || 'mp4';
-          const streamUrl = `${cleanServer}/movie/${encodeURIComponent(username)}/${encodeURIComponent(password)}/${item.stream_id}.${ext}`;
+          const streamUrl = `${cleanServer}/movie/${username}/${password}/${item.stream_id}.${ext}`;
           return {
             id: 'vod_' + item.stream_id,
             stream_id: item.stream_id,
@@ -754,7 +833,7 @@ class IPTVDataService {
         const rawEps = episodesMap[sNum] || [];
         const eps = rawEps.map(ep => {
           const ext = ep.container_extension || 'mp4';
-          const epUrl = `${cleanServer}/series/${encodeURIComponent(username)}/${encodeURIComponent(password)}/${ep.id}.${ext}`;
+          const epUrl = `${cleanServer}/series/${username}/${password}/${ep.id}.${ext}`;
           return {
             id: 'ep_' + ep.id,
             episode_id: ep.id,
@@ -810,4 +889,8 @@ class IPTVDataService {
       return false;
     }
   }
+}
+
+if (typeof window !== 'undefined') {
+  window.IPTVDataService = IPTVDataService;
 }

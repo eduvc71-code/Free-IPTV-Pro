@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Fondo del splash: mismo azul-noche que la app (evita el salto blanco -> negro) -->
+    <color name="splashBackground">#05050A</color>
+    <color name="splashNeon">#00F3FF</color>
+</resources>

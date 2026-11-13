@@ -1,126 +1,8 @@
 // =========================================================
-// Free-IPTV Pro - Ultra-Modern Video Player Engine
+// Free-IPTV Pro - Video Player Engine (REESCRITO)
+// Reproducción interna prioritaria para VOD/Series/TV
+// Auto-ocultar controles, restaurar audio, rotación automática
 // =========================================================
-
-// =========================================================
-// IPTV Custom Loaders for HLS.js
-// Resolves 302 redirects and root-relative /hls/ segments in Android WebView
-// =========================================================
-
-class IPTVPlaylistLoader extends (typeof Hls !== 'undefined' ? Hls.DefaultConfig.loader : Object) {
-  constructor(config) {
-    super(config);
-  }
-
-  load(context, config, callbacks) {
-    if (context && context.url) {
-      // 1. Desempaquetar proxy Capacitor si viene en la URL
-      if (context.url.includes('_capacitor_http_interceptor_')) {
-        try {
-          const u = new URL(context.url).searchParams.get('u');
-          if (u) context.url = decodeURIComponent(u);
-        } catch (e) {}
-      }
-
-      // 2. Si la URL apunta a localhost, resolverla contra el origen real del stream
-      if (context.url.startsWith('https://localhost/') || context.url.startsWith('http://localhost/')) {
-        try {
-          const urlObj = new URL(context.url);
-          if (window._activeStreamOrigin) {
-            context.url = window._activeStreamOrigin + urlObj.pathname + urlObj.search;
-          }
-        } catch (e) {}
-      }
-    }
-
-    console.log('[IPTV] PlaylistLoader solicitando:', context.url);
-
-    const origOnSuccess = callbacks.onSuccess;
-    callbacks.onSuccess = (response, stats, ctx, networkDetails) => {
-      try {
-        if (response && typeof response.data === 'string') {
-          let effectiveUrl = response.url || context.url;
-          if (effectiveUrl.includes('_capacitor_http_interceptor_')) {
-            try {
-              const u = new URL(effectiveUrl).searchParams.get('u');
-              if (u) effectiveUrl = decodeURIComponent(u);
-            } catch (e) {}
-          }
-
-          if (effectiveUrl && effectiveUrl.startsWith('http') && !effectiveUrl.includes('localhost')) {
-            try {
-              const uObj = new URL(effectiveUrl);
-              window._activeStreamOrigin = uObj.origin;
-              window._activeStreamBase = effectiveUrl.substring(0, effectiveUrl.lastIndexOf('/') + 1);
-            } catch (e) {}
-          }
-
-          const origin = window._activeStreamOrigin || '';
-          const base = window._activeStreamBase || '';
-
-          if (origin) {
-            // Reescribir rutas raíz: líneas que inician con / (ej: /hls/...) -> http://cdn/hls/...
-            response.data = response.data.replace(/^(?!\s*#)(\/[^\r\n]+)/gm, (match, path) => {
-              return origin + path;
-            });
-
-            // Reescribir rutas relativas sin slash (ej: chunk1.ts)
-            if (base) {
-              response.data = response.data.replace(/^(?!\s*#)(?!https?:\/\/|\/)([^\r\n]+)/gm, (match, rel) => {
-                return base + rel;
-              });
-            }
-
-            // Reescribir URI="..." en claves o listas secundarias
-            response.data = response.data.replace(/URI=["']([^"']+)["']/g, (match, uri) => {
-              if (uri.startsWith('/')) return 'URI="' + origin + uri + '"';
-              if (!uri.startsWith('http') && base) return 'URI="' + base + uri + '"';
-              return match;
-            });
-          }
-          console.log('[IPTV] Lista .m3u8 reescrita con origen CDN:', origin);
-        }
-      } catch (err) {
-        console.warn('[IPTV] Advertencia al reescribir lista:', err);
-      }
-
-      origOnSuccess(response, stats, ctx, networkDetails);
-    };
-
-    super.load(context, config, callbacks);
-  }
-}
-
-class IPTVFragmentLoader extends (typeof Hls !== 'undefined' ? Hls.DefaultConfig.loader : Object) {
-  constructor(config) {
-    super(config);
-  }
-
-  load(context, config, callbacks) {
-    if (context && context.url) {
-      // 1. Desempaquetar proxy si viene envuelto
-      if (context.url.includes('_capacitor_http_interceptor_')) {
-        try {
-          const u = new URL(context.url).searchParams.get('u');
-          if (u) context.url = decodeURIComponent(u);
-        } catch (e) {}
-      }
-
-      // 2. Corregir cualquier URL que haya quedado en localhost
-      if (context.url.startsWith('https://localhost/') || context.url.startsWith('http://localhost/')) {
-        try {
-          const urlObj = new URL(context.url);
-          if (window._activeStreamOrigin) {
-            context.url = window._activeStreamOrigin + urlObj.pathname + urlObj.search;
-            console.log('[IPTV] FragmentLoader redirigió segmento localhost a:', context.url);
-          }
-        } catch (e) {}
-      }
-    }
-
-    super.load(context, config, callbacks);
-  }
-}
 
 class VideoPlayerManager {
   constructor() {
@@ -145,6 +27,7 @@ class VideoPlayerManager {
     this.aspectLabels = ['Ajustar', 'Zoom', 'Estirar'];
     this.currentAspectIdx = 0;
     this.isLocked = false;
+    this.isExoPlayerActive = false; // FASE: saber si ExoPlayer nativo está al frente
 
     // Sleep Timer
     this.sleepTimerInterval = null;
@@ -155,23 +38,241 @@ class VideoPlayerManager {
     this.maxBgRetries = 3;
     this.bgRetryTimer = null;
 
-    // FASE 2: estado de audio (pistas, fallo de códec, derivación externa)
-    this.audioTrackInfo = null;      // { tracks: [...], source: 'hlsjs'|'xtream' }
-    this._externalRedirected = false; // no derivar 2 veces a externo en la misma sesión
-    this._codecFailCount = 0;         // fallos MEDIA_ERROR consecutivos por códec
+    // FASE 2: estado de audio
+    this.audioTrackInfo = null;
+    this._externalRedirected = false;
+    this._ffmpegRetried = false;
+    this._codecFailCount = 0;
+
+    // Auto-ocultar controles
+    this.controlsVisible = true;
+    this.CONTROLS_HIDE_DELAY = 3000; // 3 segundos sin tocar
 
     this.initTouchGestures();
     this.initVideoEvents();
+    this.initVisibilityHandler(); // Restaurar audio al volver de VLC
+    this.initRotationHandler();   // Rotación automática
+    this.initExoListener();       // Sincronizar estado del reproductor nativo
+    this.initHardwareVolumeKeys(); // Botones fisicos de volumen del dispositivo
   }
 
+  // Mantiene sincronizado el estado del reproductor nativo (Media3) con la UI web
+  initExoListener() {
+    if (!window.exoPlayerPlugin) return;
+    window.exoPlayerPlugin.on('playbackStateChanged', (data) => {
+      if (!data) return;
+      // STATE_ENDED (4) o STATE_IDLE (1): el player nativo dejo de reproducir.
+      // Si el stop fue solicitado por nosotros (play() cambiando de canal) el flag
+      // ya fue reseteado: no tocarlo aqui para no dejar al player nativo "vivo"
+      // logicamente y disparar un stop() recursivo.
+      if (data.state === 4 || data.state === 1) {
+        if (this._exoStopRequested) {
+          this._exoStopRequested = false;
+          this.isExoPlayerActive = false;
+          return;
+        }
+        this.isExoPlayerActive = false;
+        this.updatePlayIcon(false);
+        this.showControls();
+      }
+    });
+    window.exoPlayerPlugin.on('playbackError', (data) => {
+      console.error('[IPTV] Error del reproductor nativo:', data && data.error);
+      this.isExoPlayerActive = false;
+      this.showControls();
+
+      // FASE 2: si el fallo es de DECODIFICACION de audio se reintenta con el
+      // renderer FFmpeg software (EXTENSION_RENDERER_MODE_PREFER). Normalmente
+      // no haria falta: ExoPlayerPlugin YA oculta AC-3/E-AC-3 del decoder
+      // hardware, asi que el renderer FFmpeg recibe el track desde el primer
+      // intento. Este reintento es la red de seguridad por si acaso.
+      const audioFail = data && (data.audioDecodeFailed || /decoder|decode|ac-3|eac3|ac3/i.test(data.error || ''));
+      if (audioFail && !this._ffmpegRetried && this.currentChannel && this.currentChannel.url) {
+        console.warn('[IPTV] Decodificacion de audio fallida; reintentando con FFmpeg software.');
+        this._ffmpegRetried = true;
+        if (typeof showToast === 'function') {
+          showToast('🎧 Codec no soportado por el dispositivo. Reintentando con decodificador software...');
+        }
+        this.playWithExo(this.currentChannel.url, this.currentChannel, this._playToken, 2)
+          .then(ok => { if (!ok) this._ffmpegRetried = false; })
+          .catch(() => { this._ffmpegRetried = false; });
+        return;
+      }
+
+      // Si tampoco hay motor software disponible, se deriva a VLC/MX Player:
+      // mejor un reproductor externo con sonido que una pantalla muda.
+      const audioFail2 = data && (data.audioDecodeFailed || /decoder|decode|ac-3|eac3|ac3/i.test(data.error || ''));
+      if (audioFail2 && !this._externalRedirected && typeof openMediaInExternalPlayer === 'function') {
+        console.warn('[IPTV] Audio no decodificable; delegando a reproductor externo.');
+        this._externalRedirected = true;
+        if (typeof showToast === 'function') {
+          showToast('🔊 Dolby no compatible con este dispositivo. Abriendo en VLC...');
+        }
+        if (this.currentChannel && this.currentChannel.url) {
+          openMediaInExternalPlayer(this.currentChannel.url, this.currentChannel.name || 'Contenido');
+        }
+      }
+    });
+  }
+
+  // =========================================================
+  // VISIBILITY: Restaurar audio al volver de reproductor externo (VLC/MX Player)
+  // =========================================================
+  initVisibilityHandler() {
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) return;           // solo nos interesa al volver
+      if (!this.currentChannel) return;
+
+      // ExoPlayer nativo activo: si su superficie ya no está en primer plano,
+      // liberar el estado (si no, la app cree que sigue reproduciendo).
+      if (this.isExoPlayerActive) {
+        this.isExoPlayerActive = false;
+        this.showControls();
+        return;
+      }
+
+      // NO recargar el canal solo por volver al primer plano.
+      // Con HLS.js el `currentSrc` suele estar vacío hasta que carga el manifiesto,
+      // y recargarlo reiniciaba la transmisión en vivo (el usuario veía el corte).
+      // Solo se reintenta si el elemento de video esta REALMENTE en error.
+      if (this.video.error) {
+        console.log('[IPTV] Video en error al volver al primer plano; reintentando.');
+        this.play(this.currentChannel, true);
+      } else if (this.video.readyState >= 2 && this.video.paused) {
+        this.video.play().catch(() => {});
+      }
+    });
+
+    // Escuchar evento custom cuando ExoPlayer termine o vuelva de externo
+    window.addEventListener('freeiptv:resume-playback', () => {
+      if (this.currentChannel && !this.isExoPlayerActive) {
+        console.log('[IPTV] Reanudando playback tras volver de externo');
+        this.play(this.currentChannel, true);
+      }
+    });
+  }
+
+  // =========================================================
+  // ROTACIÓN: Bloquear landscape al reproducir, desbloquear al salir
+  // =========================================================
+  initRotationHandler() {
+    // Detectar cambio de orientación y ajustar UI
+    window.addEventListener('orientationchange', () => {
+      setTimeout(() => {
+        this.adjustPlayerForOrientation();
+      }, 100);
+    });
+
+    window.matchMedia('(orientation: landscape)').addEventListener('change', (e) => {
+      setTimeout(() => {
+        this.adjustPlayerForOrientation();
+      }, 100);
+    });
+  }
+
+  adjustPlayerForOrientation() {
+    const isLandscape = window.innerWidth > window.innerHeight;
+    const isSmallScreen = window.innerWidth <= 600; // Teléfonos pequeños
+
+    if (this.currentChannel && this.container) {
+      if (isLandscape || isSmallScreen) {
+        // Aprovechar pantalla máxima en móviles pequeños y landscape
+        this.container.style.width = '100vw';
+        this.container.style.height = '100vh';
+        this.container.style.maxHeight = 'none';
+        this.container.style.borderRadius = '0';
+      } else {
+        this.container.style.width = '';
+        this.container.style.height = '';
+        this.container.style.maxHeight = '';
+        this.container.style.borderRadius = '';
+      }
+    }
+
+    // Reubicar la superficie de video nativa (si ExoPlayer está activo)
+    if (this.isExoPlayerActive && window.exoPlayerPlugin) {
+      setTimeout(() => {
+        window.exoPlayerPlugin.setLayout(this.getPlayerLayout());
+      }, 160);
+    }
+  }
+
+  // =========================================================
+  // CONTROLES: Auto-ocultar e iconos
+  // =========================================================
+  // NOTA: showControls() NO debe llamar a resetControlsTimeout().
+  // resetControlsTimeout() ya invoca showControls(); si ambos se llaman
+  // mutuamente se produce recursión infinita (stack overflow) al reproducir.
+  showControls() {
+    this.controlsVisible = true;
+    this.overlay.classList.remove('controls-hidden');
+    this.overlay.classList.add('controls-visible');
+
+    const minBtn = document.getElementById('btn-player-minimize');
+    const isFs = this.container.classList.contains('fullscreen-player');
+    if (minBtn) {
+      if (isFs) minBtn.classList.remove('hidden');
+      else minBtn.classList.add('hidden');
+    }
+  }
+
+  hideControls() {
+    if (this.isLocked) return;
+    this.controlsVisible = false;
+    this.overlay.classList.add('controls-hidden');
+    this.overlay.classList.remove('controls-visible');
+
+    const minBtn = document.getElementById('btn-player-minimize');
+    if (minBtn) minBtn.classList.add('hidden');
+  }
+
+  toggleControls() {
+    if (this.controlsVisible) {
+      this.hideControls();
+    } else {
+      // resetControlsTimeout() muestra los controles y programa el auto-ocultado
+      this.resetControlsTimeout();
+    }
+  }
+
+  resetControlsTimeout() {
+    clearTimeout(this.controlsTimer);
+    this.showControls(); // Siempre mostrar al interactuar
+    if (!this.video.paused && !this.isLocked) {
+      this.controlsTimer = setTimeout(() => {
+        this.hideControls();
+      }, this.CONTROLS_HIDE_DELAY);
+    }
+  }
+
+  // =========================================================
+  // PLAY: Reproducción interna prioritaria para TODO el contenido
+  // =========================================================
   async play(channel, isSilentBg = false) {
     if (!channel || !channel.url) return;
+
+    // Guard de reentrada: cada play() invalida los callbacks asincronos del
+    // anterior (evita que un play() viejo pise al nuevo -> bucle de estados).
+    this._playToken = (this._playToken || 0) + 1;
+    const token = this._playToken;
+
+    // =========================================================
+    // DETENER EL REPRODUCTOR NATIVO (ExoPlayer) SI ESTA ACTIVO
+    // IMPORTANTE: va ANTES de resetear el flag. Si el flag se resetea primero,
+    // el stop() nunca se ejecuta, la superficie nativa sigue visible y sonando
+    // ENCIMA del reproductor web -> imposible cambiar de canal (bucle).
+    // =========================================================
+    if (this.isExoPlayerActive && window.exoPlayerPlugin) {
+      this._exoStopRequested = true;
+      try { await window.exoPlayerPlugin.stop(); } catch (e) {}
+    }
+    this.isExoPlayerActive = false;
 
     this.currentChannel = channel;
     this.hideIdle();
 
-    // FASE 2: flags de audio/derivación por sesión de reproducción
     this._externalRedirected = false;
+    this._ffmpegRetried = false;
     this.audioTrackInfo = null;
     if (!isSilentBg) this._codecFailCount = 0;
 
@@ -189,11 +290,7 @@ class VideoPlayerManager {
 
     // Limpiar reproductor anterior
     if (this.hls) {
-      try {
-        this.hls.destroy();
-      } catch (e) {
-        console.warn('[IPTV] Error destruyendo HLS:', e);
-      }
+      try { this.hls.destroy(); } catch (e) {}
       this.hls = null;
     }
 
@@ -202,85 +299,94 @@ class VideoPlayerManager {
     this.video.load();
     this.video.muted = false;
     this.video.volume = 1.0;
+    // Se resetea tambien el volumen interno: si un play anterior lo dejo a 0
+    // (por ejemplo tras pulsar el boton fisico de volumen), el canal nuevo
+    // arrancaba MUDO aunque el <video> recibiese volumen 1.0.
+    this.volume = 1.0;
 
     const isM3U8 = /\.m3u8(?:$|[?#])/i.test(streamUrl);
-    // VOD/Series Xtream: extensiones reales reportadas por player_api.php
     const isVodExt = /\.(mp4|mkv|avi|mov|m4v|wmv|flv|webm|ts|m2ts|mpg|mpeg)(?:$|[?#])/i.test(streamUrl);
     const isMP4 = /\.mp4(?:$|[?#])/i.test(streamUrl);
     const isTS = /\.ts(?:$|[?#])/i.test(streamUrl);
+    const isVod = channel.type === 'vod' || channel.type === 'episode' || channel.type === 'series';
 
-    // FASE 3: Usar ExoPlayer nativo (Media3 + FFmpeg) para AC-3/E-AC-3/MKV sin salir de la app
-    const isAudioSensitive = isVodExt || isTS || /\.mkv|\.avi|\.wmv|\.flv/i.test(streamUrl);
-    if (isAudioSensitive && window.exoPlayerPlugin && window.exoPlayerPlugin.available) {
+    // Contadores de reintento: se reinician en cada cambio de canal
+    this._hlsNetworkRetries = 0;
+    this._codecFailCount = 0;
+
+    // =========================================================
+    // DECISIÓN DE MOTOR DE REPRODUCCIÓN
+    // - MOTOR 1: WebView (HLS.js)  -> TV en directo, rapido y barato
+    // - MOTOR 2: Media3/ExoPlayer -> HLS/DASH, MP4/TS con AAC/AC-3 nativo
+    //   + extension FFmpeg software (E-AC-3 5.1, TrueHD, DTS) como RESERVA:
+    //     si el MediaCodec del dispositivo no decodifica el codec, Media3 cae
+    //     automaticamente al decodificador software y sigue sonando.
+    // - El usuario puede forzar el modo desde Ajustes (auto | web | native | ffmpeg).
+    // =========================================================
+    const enginePref = this.getEnginePreference();
+    const exoAvailable = !!(window.exoPlayerPlugin && window.exoPlayerPlugin.available);
+    const forceNative = (enginePref === 'native');
+    const forceWeb = (enginePref === 'web');
+    // Modo del renderer de extension FFmpeg:
+    //   0 = OFF (solo hardware) | 1 = ON (hardware + FFmpeg de reserva) | 2 = PREFER (FFmpeg primero)
+    const extensionMode = this.getExtensionRendererMode();
+
+    // Contenedores/codecs que el WebView NO puede reproducir
+    const hardFormat = isTS || /\.(mkv|avi|wmv|flv|m4v|mov)(?:$|[?#])/i.test(streamUrl);
+
+    const needsExo = exoAvailable && !forceWeb && (
+      forceNative ||
+      isVod ||
+      hardFormat ||
+      isVodExt
+    );
+
+    // [MOD VOD] Forzamos bypass total del HTML5 para VOD y pasamos a ExoPlayer.
+    if (needsExo) {
+      console.log('[IPTV] Derivando directamente a ExoPlayer (VOD o Ext incompatible)');
       this.showLoading(false);
-      try {
-        window.exoPlayerPlugin.play(streamUrl, channel.name || 'Contenido');
+      const started = await this.playWithExo(streamUrl, channel, token, extensionMode);
+      if (started) {
         this.resetControlsTimeout();
         return;
-      } catch (e) {
-        console.warn('[IPTV] ExoPlayer falló, intentando reproducción web:', e.message);
       }
+      // Si ExoPlayer no pudo arrancar, se cae al flujo HTML5 de abajo.
+      console.warn('[IPTV] ExoPlayer no arranco, cayendo al flujo HTML5 (Posible error de codec o HLS)');
     }
 
-    // Fallback legacy: forzar reproductor externo solo si ExoPlayer no está disponible
-    if (channel.forceExternal && typeof openMediaInExternalPlayer === 'function') {
-      this.showLoading(false);
-      openMediaInExternalPlayer(streamUrl, channel.name || 'Contenido');
-      this.resetControlsTimeout();
-      return;
-    }
-
-    console.log('[IPTV] Iniciando reproducción:', {
-      url: streamUrl.replace(/\/\/([^/@]+)@/, '//[REDACTED]@'),
-      format: isM3U8 ? 'HLS' : isMP4 ? 'MP4' : isTS ? 'TS' : 'UNKNOWN',
-      hlsAvailable: typeof Hls !== 'undefined',
-      hlsSupported: typeof Hls !== 'undefined' && Hls.isSupported()
-    });
-
-    // 1. Pre-resolución de redirecciones (302) SOLO para listas HLS (.m3u8)
-    //    Nota: para VOD/Series (mp4/mkv/ts) se omite el pre-chequeo completo:
-    //    descarga datos innecesarios y puede timeear en servidores lentos.
-    let effectiveStreamUrl = streamUrl;
+    // Guardar origen para fragmentos relativos
     try {
-      if (isM3U8 && window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.CapacitorHttp) {
-        console.log('[IPTV] Verificando redirección CDN para:', streamUrl);
-        const preCheck = await window.Capacitor.Plugins.CapacitorHttp.get({
-          url: streamUrl,
-          headers: { 'User-Agent': 'IPTVSmartersPro', 'Range': 'bytes=0-0' },
-          connectTimeout: 8000,
-          readTimeout: 8000
-        });
-        if (preCheck && preCheck.url && preCheck.url.startsWith('http')) {
-          effectiveStreamUrl = preCheck.url;
-          console.log('[IPTV] URL resuelta tras redirección 302:', effectiveStreamUrl);
-        }
-      }
-    } catch (e) {
-      console.warn('[IPTV] No se resolvió redirección previa (usando URL directa):', e.message);
-    }
-
-    // Guardar origen y base para resolución de fragmentos relativos
-    try {
-      const uObj = new URL(effectiveStreamUrl);
+      const uObj = new URL(streamUrl);
       window._activeStreamOrigin = uObj.origin;
-      window._activeStreamBase = effectiveStreamUrl.substring(0, effectiveStreamUrl.lastIndexOf('/') + 1);
+      window._activeStreamBase = streamUrl.substring(0, streamUrl.lastIndexOf('/') + 1);
     } catch (e) {
       window._activeStreamOrigin = '';
       window._activeStreamBase = '';
     }
 
     const onPlaybackStarted = () => {
-      console.log('[IPTV] Reproducción iniciada con éxito');
+      // Guard de reentrada: si se lanzo otro play() mientras tanto, abortar.
+      if (token !== this._playToken) {
+        console.log('[IPTV] play() obsoleto, ignorando callback de arranque');
+        return;
+      }
+      console.log('[IPTV] Reproducción iniciada con éxito (HTML5)');
       this.showLoading(false);
       this.hideError();
       this.hideBgRetry();
       this.bgRetryCount = 0;
       this.updatePlayIcon(true);
       this.updateQualityBadge();
+      this.showControls();
+      this.resetControlsTimeout();
+      this.adjustPlayerForOrientation();
     };
 
+    // =========================================================
+    // 1. HLS (.m3u8) - Usar HLS.js siempre para mejor compatibilidad
+    // =========================================================
     if (isM3U8 && typeof Hls !== 'undefined' && Hls.isSupported()) {
-      console.log('[IPTV] Usando HLS.js con IPTV Loaders');
+      console.log('[IPTV] Usando HLS.js para:', streamUrl);
 
       this.hls = new Hls({
         enableWorker: false,
@@ -295,338 +401,405 @@ class VideoPlayerManager {
         fLoader: IPTVFragmentLoader
       });
 
-      this.hls.on(Hls.Events.MEDIA_ATTACHED, () => {
-        console.log('[IPTV] MEDIA_ATTACHED');
-      });
-
-      this.hls.on(Hls.Events.MANIFEST_LOADING, (event, data) => {
-        console.log('[IPTV] MANIFEST_LOADING:', data.url);
-      });
-
       this.hls.on(Hls.Events.MANIFEST_PARSED, () => {
-        console.log('[IPTV] MANIFEST_PARSED');
         onPlaybackStarted();
-        // FASE 2: exponer pistas de audio HLS al AudioTrackManager
         try { this.collectHlsAudioTracks(); } catch (e) {}
         this.video.play().catch(error => {
           console.error('[IPTV] Error video.play():', error);
         });
       });
 
-      this.hls.on(Hls.Events.AUDIO_TRACKS_UPDATED, () => {
-        try { this.collectHlsAudioTracks(); } catch (e) {}
-      });
-
-      this.hls.on(Hls.Events.FRAG_LOADED, (event, data) => {
-        console.log('[IPTV] FRAG_LOADED:', data.frag?.url);
-      });
-
       this.hls.on(Hls.Events.ERROR, (event, data) => {
-        console.error('[IPTV] HLS ERROR:', {
-          type: data.type,
-          details: data.details,
-          fatal: data.fatal,
-          url: data.url,
-          response: data.response
-        });
-
+        console.error('[IPTV] HLS ERROR:', data.details, data.fatal);
         if (data.fatal) {
-          switch (data.type) {
-            case Hls.ErrorTypes.NETWORK_ERROR:
-              console.warn('[IPTV] Network fatal error, intentando startLoad()...');
+          if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
+            // startLoad() sin limite reintenta en bucle y deja la app colgada.
+            // Limitar los reintentos y luego pasar al flujo de error normal.
+            this._hlsNetworkRetries = (this._hlsNetworkRetries || 0) + 1;
+            if (this._hlsNetworkRetries <= 3) {
+              console.warn('[IPTV] Error de red HLS, reintento ' + this._hlsNetworkRetries + '/3');
               this.hls.startLoad();
-              break;
-            case Hls.ErrorTypes.MEDIA_ERROR:
-              console.warn('[IPTV] Media fatal error, intentando recoverMediaError()...');
-              // FASE 2: si el códec de audio (p.ej. AC3/E-AC3) no es decodificable
-              // por WebView, tras 2 recuperaciones derivar a reproductor externo.
-              this._codecFailCount++;
-              if (this._codecFailCount >= 2 && this.isVodOrCodecSensitive()) {
-                if (window.exoPlayerPlugin && window.exoPlayerPlugin.available) {
-                  try {
-                    this.showLoading(false);
-                    window.exoPlayerPlugin.play(this.currentChannel.url, this.currentChannel.name || 'Contenido');
-                    return;
-                  } catch (e) {
-                    console.warn('[IPTV] ExoPlayer no disponible para códec:', e.message);
-                  }
-                }
-                this._redirectToExternalPlayer('⚠️ Códec de audio no compatible. Abriendo en VLC / MX Player...');
-                return;
-              }
-              this.hls.recoverMediaError();
-              break;
-            default:
+            } else {
               this.showLoading(false);
               this.handleStreamFailInBackground();
-              break;
+            }
+          } else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
+            this._codecFailCount++;
+            // Solo derivar a ExoPlayer si HTML5 falló 2 veces y es VOD/Series
+            if (this._codecFailCount >= 2 && this.isVodOrCodecSensitive()) {
+              this.playWithExo(streamUrl, channel);
+              return;
+            }
+            this.hls.recoverMediaError();
+          } else {
+            this.showLoading(false);
+            this.handleStreamFailInBackground();
           }
         }
       });
+
+      // Pre-resolución de redirecciones 302 para HLS
+      let effectiveStreamUrl = streamUrl;
+      try {
+        if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.CapacitorHttp) {
+          const preCheck = await window.Capacitor.Plugins.CapacitorHttp.get({
+            url: streamUrl,
+            headers: { 'User-Agent': 'IPTVSmartersPro', 'Range': 'bytes=0-0' },
+            connectTimeout: 8000,
+            readTimeout: 8000
+          });
+          if (preCheck && preCheck.url && preCheck.url.startsWith('http')) {
+            effectiveStreamUrl = preCheck.url;
+          }
+        }
+      } catch (e) {}
+
+      try {
+        const uObj = new URL(effectiveStreamUrl);
+        window._activeStreamOrigin = uObj.origin;
+        window._activeStreamBase = effectiveStreamUrl.substring(0, effectiveStreamUrl.lastIndexOf('/') + 1);
+      } catch (e) {}
 
       this.hls.loadSource(effectiveStreamUrl);
       this.hls.attachMedia(this.video);
 
     } else {
-      // Reproducción directa: MP4, TS u otro formato
-      if (isM3U8) {
-        const nativeHls = this.video.canPlayType(
-          'application/vnd.apple.mpegurl'
-        );
-
-        if (!nativeHls) {
-          console.error('[IPTV] HLS no soportado por HLS.js ni por el vídeo nativo');
-          this.showLoading(false);
-          this.showError(
-            'Formato HLS no compatible',
-            'Este dispositivo no dispone de un reproductor compatible con esta señal.'
-          );
-          return;
-        }
-      }
-
-      // Formatos NO compatibles con HTML5/WebView (MKV, AVI, WMV, FLV...):
-      // Se reproducen internamente con ExoPlayer (Media3 + FFmpeg Audio) que soporta AC-3/E-AC-3.
-      const webCompatible = /\.(mp4|m4v|webm|mov|ts|m2ts|mpg|mpeg)(?:$|[?#])/i.test(streamUrl) || isM3U8;
-      if (isVodExt && !webCompatible) {
-        this.showLoading(false);
-        if (window.exoPlayerPlugin && window.exoPlayerPlugin.available) {
-          try {
-            window.exoPlayerPlugin.play(streamUrl, channel.name || 'Película');
-            this.resetControlsTimeout();
-            return;
-          } catch (e) {
-            console.warn('[IPTV] ExoPlayer no disponible para este formato:', e.message);
-          }
-        }
-        if (typeof openMediaInExternalPlayer === 'function') {
-          showToast('🎬 Formato no compatible internamente. Abriendo en VLC / MX Player...');
-          openMediaInExternalPlayer(streamUrl, channel.name || 'Película');
-        } else {
-          this.showError(
-            'Formato de video no compatible',
-            'Esta película usa un contenedor (MKV/AVI) que el navegador no puede reproducir. Instálala en VLC o MX Player.'
-          );
-        }
-        return;
-      }
-
-      console.log('[IPTV] Usando reproducción directa con URL:', effectiveStreamUrl);
+      // =========================================================
+      // 2. REPRODUCCIÓN DIRECTA (MP4, TS, MKV, AVI, etc.) - HTML5 nativo
+      // =========================================================
+      console.log('[IPTV] Usando reproducción directa HTML5:', streamUrl);
 
       this.video.muted = false;
       this.video.volume = 1.0;
-      this.video.src = effectiveStreamUrl;
+      this.video.src = streamUrl;
       this.video.load();
 
       this.video.play().then(() => {
         onPlaybackStarted();
-      }).catch(error => {
+      }).catch(async (error) => {
+        // Guard de reentrada: si el usuario ya cambio de canal, abortar.
+        if (token !== this._playToken) {
+          console.log('[IPTV] Error de play() obsoleto, ignorando');
+          return;
+        }
         console.error('[IPTV] Error en reproducción directa:', error);
-        // Si el fallo es de códec/formato (NotSupportedError) o de red,
-        // ofrecer automáticamente el reproductor externo para VOD/Series
+
         const errName = error && error.name ? error.name : '';
         const isType = channel && (channel.type === 'vod' || channel.type === 'episode' || channel.type === 'series');
+
+        // Si falló por códec o es VOD/Series, intentar ExoPlayer nativo (fallback real)
+        if (errName === 'NotSupportedError' || isType) {
+          await this.playWithExo(streamUrl, channel, token);
+          return;
+        }
+
+        // Para canales en vivo que fallen, usar ExoPlayer o externo
         if ((errName === 'NotSupportedError' || isType) && window.exoPlayerPlugin && window.exoPlayerPlugin.available) {
           try {
-            showToast('🔊 Usando ExoPlayer nativo (AC-3/Dolby)...');
-            window.exoPlayerPlugin.play(streamUrl, channel?.name || 'Contenido');
+            await this.playWithExo(streamUrl, channel, token);
             return;
           } catch (e) {
             console.warn('[IPTV] ExoPlayer no disponible:', e.message);
           }
         }
-        if ((errName === 'NotSupportedError' || isType) && typeof openMediaInExternalPlayer === 'function') {
-          showToast('🔊 Sin soporte interno (códec/audio). Abriendo en reproductor externo...');
+
+        if (typeof openMediaInExternalPlayer === 'function') {
+          showToast('🔊 Sin soporte interno. Abriendo en reproductor externo...');
           openMediaInExternalPlayer(streamUrl, channel?.name || 'Contenido');
         } else {
           this.handleStreamFailInBackground();
         }
       });
 
-      // Timeout de seguridad: si en 15s no arrancó ni metadata ni playing,
-      // intentar recuperación con ExoPlayer nativo (evita "pantalla negra" en películas)
+      // Timeout de seguridad: si en 15s no arrancó el contenido DIRECTO de VOD,
+      // probar ExoPlayer nativo.
+      // NO se aplica a TV en vivo: un canal lento o un pico de red NO debe
+      // reiniciar la transmisión (provocaba cortes constantes).
       clearTimeout(this.vodStartTimer);
-      this.vodStartTimer = setTimeout(() => {
-        if (this.currentChannel === channel && this.video.readyState < 2) {
-          console.warn('[IPTV] Arranque agotado para contenido directo; probando ExoPlayer nativo.');
-          if (window.exoPlayerPlugin && window.exoPlayerPlugin.available) {
-            try {
-              this.showLoading(false);
-              window.exoPlayerPlugin.play(streamUrl, channel?.name || 'Contenido');
-              return;
-            } catch (e) {
-              console.warn('[IPTV] ExoPlayer falló en watchdog:', e.message);
-            }
+      if (isVod) {
+        this.vodStartTimer = setTimeout(() => {
+          // Guard de reentrada: solo si este play() sigue siendo el vigente.
+          if (token !== this._playToken) return;
+          if (this.currentChannel === channel && this.video.readyState < 2 && !this.isExoPlayerActive) {
+            console.warn('[IPTV] Arranque de VOD agotado; probando ExoPlayer nativo.');
+            this.playWithExo(streamUrl, channel, token);
           }
-          if (typeof openMediaInExternalPlayer === 'function') {
-            this.showLoading(false);
-            openMediaInExternalPlayer(streamUrl, channel?.name || 'Contenido');
-          } else {
-            this.handleStreamFailInBackground();
-          }
-        }
-      }, 15000);
+        }, 15000);
+      }
     }
 
     this.resetControlsTimeout();
   }
 
-  // Handle stream fails: 3 silent background attempts, then terminate cycle and show inactive status
-  handleStreamFailInBackground() {
-    this.showLoading(false);
+  // =========================================================
+  // STOP: cancela toda la reproduccion (web + nativa) y limpia el estado.
+  // Usado al cambiar de modo, cerrar la app o cambiar de categoria.
+  // =========================================================
+  async stopPlayback() {
+    this._playToken = (this._playToken || 0) + 1;
 
-    if (this.bgRetryCount < this.maxBgRetries) {
-      this.bgRetryCount++;
-      const retryMsg = `Reintentando señal (${this.bgRetryCount}/${this.maxBgRetries})...`;
-      this.showBgRetry(true, retryMsg);
-      clearTimeout(this.bgRetryTimer);
+    clearTimeout(this.bgRetryTimer);
+    clearTimeout(this.vodStartTimer);
+    clearTimeout(this.controlsTimer);
 
-      this.bgRetryTimer = setTimeout(() => {
-        if (this.currentChannel) {
-          console.log(`[Player] Intento ${this.bgRetryCount}/${this.maxBgRetries} para: ${this.currentChannel.name}`);
-          this.play(this.currentChannel, true);
-        }
-      }, 2000);
-    } else {
-      // 3 attempts reached: TERMINATE CYCLE IMMEDIATELY!
-      console.warn("[Player] Canal inactivo tras 3 reintentos. Terminando ciclo.");
-      clearTimeout(this.bgRetryTimer);
-      this.hideBgRetry();
-      this.showLoading(false);
+    if (this.hls) {
+      try { this.hls.destroy(); } catch (e) {}
+      this.hls = null;
+    }
 
-      if (this.hls) {
-        try { this.hls.destroy(); } catch (e) {}
-        this.hls = null;
-      }
+    if (this.isExoPlayerActive && window.exoPlayerPlugin) {
+      this._exoStopRequested = true;
+      try { await window.exoPlayerPlugin.stop(); } catch (e) {}
+    }
+    this.isExoPlayerActive = false;
+
+    try {
       this.video.pause();
       this.video.removeAttribute('src');
       this.video.load();
+    } catch (e) {}
 
-      const deadCh = this.currentChannel;
-      if (deadCh) {
-        if (typeof dataService !== 'undefined' && dataService) {
-          dataService.markChannelDead(deadCh.url);
+    this.bgRetryCount = 0;
+    this._hlsNetworkRetries = 0;
+    this._codecFailCount = 0;
+    this.currentChannel = null;
+    this.updatePlayIcon(false);
+  }
+
+  // =========================================================
+  // EXOPLAYER NATIVO: reproduce dentro de la misma pantalla de la app
+  // (superficie de video nativa superpuesta al WebView) -> AC-3 con audio
+  // =========================================================
+  async playWithExo(url, channel, token = this._playToken, extensionMode = 1) {
+    if (!window.exoPlayerPlugin || !window.exoPlayerPlugin.available) return false;
+
+    try {
+      this.isExoPlayerActive = true;
+
+      // El <video> HTML5 queda sin contenido y en silencio: la superficie nativa
+      // lo covers. Ademas se libera el audio focus del WebView (si lo retiene,
+      // ExoPlayer lo pierde y el video se reproduce MUDO).
+      try {
+        this.video.pause();
+        this.video.src = '';
+        this.video.removeAttribute('src');
+        this.video.load();
+        this.video.muted = true;
+        this.video.volume = 0;
+      } catch (e) {}
+
+      // Breve espera: el WebView necesita soltar el audio focus antes de que
+      // arranque el reproductor nativo.
+      await new Promise(r => setTimeout(r, 400));
+
+      const layout = this.getPlayerLayout();
+      await window.exoPlayerPlugin.play(url, channel.name || 'Contenido', layout, extensionMode);
+
+      // Sincroniza el volumen interno con el reproductor nativo (si no, el
+      // reproductor arranca con el volumen que dejo la ultima reproduccion).
+      try {
+        if (window.exoPlayerPlugin.setVolume) {
+          await window.exoPlayerPlugin.setVolume(this.volume != null ? this.volume : 1.0);
         }
-        if (typeof markChannelCardOffline === 'function') {
-          markChannelCardOffline(deadCh.id);
-        }
+      } catch (e) {}
+
+      // Si mientras tanto se lanzo otro play(), abortar este.
+      if (token !== this._playToken) {
+        try { await window.exoPlayerPlugin.stop(); } catch (e) {}
+        return false;
       }
 
-      const chName = deadCh ? deadCh.name : 'Este canal';
-      this.showError(
-        "Canal temporalmente inactivo",
-        `La señal de "${chName}" no respondió tras ${this.maxBgRetries} intentos. Puedes reintentar o elegir otro canal de la grilla.`
-      );
-      this.showToast(`⚠️ ${chName}: Canal temporalmente inactivo`);
+      this.showLoading(false);
+      this.hideError();
+      this.hideBgRetry();
+      this.bgRetryCount = 0;
+      this.updatePlayIcon(true);
+      this.showControls();
+      this.bindExoLayoutSync();
+
+      // Diagnostico del audio en campo (si sigue mudo, esto dice el motivo)
+      try {
+        const info = await window.exoPlayerPlugin.getAudioInfo();
+        console.log('[IPTV] Audio nativo:', JSON.stringify(info));
+        if (info && typeof showToast === 'function') {
+          if (info.hasAudio === false) {
+            showToast('\u{26A0}\u{FE0F} Esta señal NO incluye pista de audio');
+          } else if (info.systemVolume === 0) {
+            showToast('\u{1F507} El volumen del dispositivo está en 0');
+          } else if (info.focusGranted === false) {
+            showToast('\u{26A0}\u{FE0F} No se pudo tomar el foco de audio');
+          }
+        }
+      } catch (e) {}
+
+      console.log('[IPTV] Reproduciendo con ExoPlayer nativo (AC-3/Dolby soportado)');
+      return true;
+    } catch (e) {
+      console.warn('[IPTV] ExoPlayer nativo fallo:', e.message);
+      this.isExoPlayerActive = false;
+      return false;
     }
   }
 
-  playNextChannel(isAutoSkip = false) {
-    clearTimeout(this.bgRetryTimer);
-    this.hideBgRetry();
+  /**
+   * Diagnostico del audio del motor ACTIVO (WebView / Media3).
+   * Devuelve el codec real y el numero de canales de la pista seleccionada.
+   */
+  async getActiveEngineAudioInfo() {
+    try {
+      if (this.isExoPlayerActive && window.exoPlayerPlugin) {
+        return await window.exoPlayerPlugin.getAudioInfo();
+      }
+      const v = this.video;
+      return {
+        hasAudio: !!(v && v.mozHasAudio !== false && v.audioTracks !== undefined && v.audioTracks.length >= 0),
+        mimeType: 'HTML5 (WebView)',
+        channels: 2,
+        volume: v ? v.volume : 1.0,
+        muted: v ? v.muted : false,
+        engine: 'web'
+      };
+    } catch (e) {
+      return { hasAudio: false, mimeType: '', channels: 0, error: e.message };
+    }
+  }
 
-    if (!allChannels || allChannels.length === 0) return;
+  // Rectangulo del reproductor en CSS px (el plugin lo convierte a px de Android)
+  getPlayerLayout() {
+    const el = this.container;
+    if (!el) return null;
+    const r = el.getBoundingClientRect();
+    if (!r.width || !r.height) return null;
+    return { x: r.left, y: r.top, w: r.width, h: r.height };
+  }
 
-    let currentIdx = allChannels.findIndex(c => c.url === this.currentChannel?.url || c.id === this.currentChannel?.id);
-    if (currentIdx === -1) currentIdx = 0;
+  /**
+   * Modo del renderer de extension FFmpeg que se pasa al reproductor nativo:
+   *   0 = OFF    -> solo decodificadores hardware
+   *   1 = ON     -> hardware primero, FFmpeg software de reserva (recomendado)
+   *   2 = PREFER -> FFmpeg software primero (maxima compatibilidad)
+   */
+  getExtensionRendererMode() {
+    const pref = this.getEnginePreference();
+    if (pref === 'native') return 0;   // solo hardware
+    if (pref === 'ffmpeg') return 2;   // software primero
+    return 1;                          // auto: hardware + reserva software
+  }
 
-    let nextIdx = (currentIdx + 1) % allChannels.length;
-    let attempts = 0;
+  // Preferencia de motor de reproduccion: auto | web | native | ffmpeg
+  getEnginePreference() {
+    try { return localStorage.getItem('free_iptv_engine') || 'auto'; } catch (e) { return 'auto'; }
+  }
 
-    while (attempts < allChannels.length && dataService && dataService.isChannelDead(allChannels[nextIdx].url)) {
-      nextIdx = (nextIdx + 1) % allChannels.length;
-      attempts++;
+  // Mantiene la superficie nativa alineada con el reproductor (rotacion/fullscreen)
+  bindExoLayoutSync() {
+    if (this._exoLayoutBound) return;
+    this._exoLayoutBound = true;
+
+    const sync = () => {
+      if (this.isExoPlayerActive && window.exoPlayerPlugin) {
+        window.exoPlayerPlugin.setLayout(this.getPlayerLayout());
+      }
+    };
+    this._exoLayoutSync = sync;
+
+    window.addEventListener('resize', sync);
+    window.addEventListener('orientationchange', () => setTimeout(sync, 150));
+    if (window.matchMedia) {
+      const mq = window.matchMedia('(orientation: landscape)');
+      if (mq.addEventListener) mq.addEventListener('change', () => setTimeout(sync, 150));
+    }
+  }
+
+  // =========================================================
+  // EXOPLAYER FALLBACK: Solo cuando HTML5 falló realmente
+  // =========================================================
+  async tryExoPlayerFallback(url, channel) {
+    if (this.isExoPlayerActive) return;
+    if (!window.exoPlayerPlugin || !window.exoPlayerPlugin.available) {
+      console.warn('[IPTV] ExoPlugin no disponible');
+      return false;
     }
 
-    if (attempts >= allChannels.length) {
-      this.showError("No hay señales disponibles en esta lista actualmente.");
+    try {
+      this.showLoading(false);
+      this.isExoPlayerActive = true;
+      this.video.pause();
+      this.video.removeAttribute('src');
+
+      // Bloquear orientación landscape para video nativo
+      if (window.screen && window.screen.orientation && typeof window.screen.orientation.lock === 'function') {
+        await window.screen.orientation.lock('landscape').catch(() => {});
+      }
+
+      await window.exoPlayerPlugin.play(url, channel.name || 'Contenido', null,
+        this.getExtensionRendererMode());
+
+      // Escuchar cuando ExoPlayer termine para regresar a HTML5
+      window.exoPlayerPlugin.on('playbackStateChanged', (data) => {
+        if (!data.playing && data.state === 4) { // STATE_ENDED
+          this.isExoPlayerActive = false;
+          this.showControls();
+        }
+      });
+
+      window.exoPlayerPlugin.on('playbackError', (data) => {
+        console.error('[IPTV] ExoPlayer error:', data.error);
+        this.isExoPlayerActive = false;
+        if (typeof openMediaInExternalPlayer === 'function') {
+          openMediaInExternalPlayer(url, channel.name || 'Contenido');
+        }
+      });
+
+      this.showToast('🎬 Reproduciendo con ExoPlayer nativo...');
+      return true;
+    } catch (e) {
+      console.warn('[IPTV] ExoPlayer falló:', e.message);
+      this.isExoPlayerActive = false;
+      return false;
+    }
+  }
+
+  // =========================================================
+  // REDIRIGIR A EXTERNO (VLC / MX Player) - Último recurso
+  // =========================================================
+  _redirectToExternalPlayer(msg = 'Abriendo en reproductor externo...') {
+    if (this._externalRedirected) return;
+    this._externalRedirected = true;
+    this.showLoading(false);
+    this.isExoPlayerActive = false;
+    if (msg && typeof showToast === 'function') showToast(msg);
+    if (this.currentChannel && this.currentChannel.url && typeof openMediaInExternalPlayer === 'function') {
+      openMediaInExternalPlayer(this.currentChannel.url, this.currentChannel.name || 'Contenido');
+    }
+  }
+
+  openCurrentInExternalPlayer() {
+    this.closeTracksModal();
+    if (!this.currentChannel || !this.currentChannel.url) {
+      if (typeof showToast === 'function') showToast("⚠️ No hay ningún contenido seleccionado.");
+      return;
+    }
+    // Abrir directamente en VLC / MX Player a través del puente nativo
+    if (typeof openMediaInExternalPlayer === 'function') {
+      openMediaInExternalPlayer(this.currentChannel.url, this.currentChannel.name || 'Contenido IPTV');
+    } else if (window.AndroidNativeApp && typeof window.AndroidNativeApp.openExternalPlayer === 'function') {
+      window.AndroidNativeApp.openExternalPlayer(this.currentChannel.url, this.currentChannel.name || 'Contenido IPTV');
+    }
+  }
+
+  // =========================================================
+  // CONTROLES DE REPRODUCCIÓN
+  // =========================================================
+  togglePlay() {
+    // Con el motor nativo (Media3) los controles los gestiona la
+    // superficie nativa.
+    if (this.isExoPlayerActive && window.exoPlayerPlugin) {
+      try { window.exoPlayerPlugin.toggle(); } catch (e) {}
+      this.resetControlsTimeout();
       return;
     }
 
-    const nextCh = allChannels[nextIdx];
-    if (isAutoSkip) {
-      this.showToast(`Señal caída. Sintonizando: ${nextCh.name} 📺`);
-    } else {
-      this.showToast(`Siguiente: ${nextCh.name} 📺`);
-    }
-    playSelectedChannel(nextCh);
-  }
-
-  playPreviousChannel() {
-    clearTimeout(this.bgRetryTimer);
-    this.hideBgRetry();
-
-    if (!allChannels || allChannels.length === 0) return;
-
-    let currentIdx = allChannels.findIndex(c => c.url === this.currentChannel?.url || c.id === this.currentChannel?.id);
-    if (currentIdx === -1) currentIdx = 0;
-
-    let prevIdx = (currentIdx - 1 + allChannels.length) % allChannels.length;
-    const prevCh = allChannels[prevIdx];
-    this.showToast(`Anterior: ${prevCh.name} 📺`);
-    playSelectedChannel(prevCh);
-  }
-
-  retryNow() {
-    clearTimeout(this.bgRetryTimer);
-    this.bgRetryCount = 0;
-    if (this.currentChannel) {
-      this.play(this.currentChannel);
-    }
-  }
-
-  showBgRetry(show, text = 'Reconectando en segundo plano...') {
-    if (this.bgRetryBadge) {
-      this.bgRetryBadge.classList.toggle('hidden', !show);
-      const spanEl = this.bgRetryBadge.querySelector('span');
-      if (spanEl && text) spanEl.innerText = text;
-    }
-  }
-
-  hideBgRetry() {
-    if (this.bgRetryBadge) {
-      this.bgRetryBadge.classList.add('hidden');
-    }
-  }
-
-  updateQualityBadge() {
-    const qBadge = document.getElementById('hud-quality-badge');
-    if (!qBadge) return;
-    if (this.video.videoHeight >= 1080) {
-      qBadge.innerText = 'FHD';
-      qBadge.classList.remove('hidden');
-    } else if (this.video.videoHeight >= 720) {
-      qBadge.innerText = 'HD';
-      qBadge.classList.remove('hidden');
-    } else if (this.video.videoHeight > 0) {
-      qBadge.innerText = 'SD';
-      qBadge.classList.remove('hidden');
-    } else {
-      qBadge.innerText = 'EN VIVO';
-    }
-  }
-
-  updateChannelMetadata(channel) {
-    const titleEl = document.getElementById('hud-channel-title');
-    const groupEl = document.getElementById('hud-channel-group');
-    const logoEl = document.getElementById('hud-channel-logo');
-    const tvTitleEl = document.getElementById('tv-hud-channel-title');
-
-    if (titleEl) titleEl.innerText = channel.name || 'Canal en vivo';
-    if (tvTitleEl) tvTitleEl.innerText = channel.name || 'Canal en vivo';
-    if (groupEl) groupEl.innerText = channel.group || 'General';
-
-    if (logoEl) {
-      if (channel.logo) {
-        logoEl.src = channel.logo;
-        logoEl.classList.remove('hidden');
-      } else {
-        logoEl.classList.add('hidden');
-      }
-    }
-  }
-
-  togglePlay() {
     if (this.video.paused) {
       this.video.play().catch(() => {});
       this.updatePlayIcon(true);
@@ -634,6 +807,7 @@ class VideoPlayerManager {
       this.video.pause();
       this.updatePlayIcon(false);
     }
+    this.showControls();
     this.resetControlsTimeout();
   }
 
@@ -648,7 +822,9 @@ class VideoPlayerManager {
     }
   }
 
-  // Robust Fullscreen & Minimizar (Exit Fullscreen without hanging)
+  // =========================================================
+  // FULLSCREEN CON ROTACIÓN AUTOMÁTICA
+  // =========================================================
   toggleFullscreen() {
     const isCurrentlyFs = this.container.classList.contains('fullscreen-player') || 
                           !!document.fullscreenElement || 
@@ -664,14 +840,22 @@ class VideoPlayerManager {
   enterFullscreenMode() {
     this.container.classList.add('fullscreen-player');
     document.body.classList.add('in-fullscreen');
+    this.hideControls(); // Ocultar controles al entrar fullscreen, reaparecen con click
 
     const icon = document.getElementById('btn-fs-icon');
     if (icon) icon.className = 'fa-solid fa-compress text-base';
 
-    // El botón minimizar NO se muestra durante la reproducción (oculto siempre)
     const minBtn = document.getElementById('btn-player-minimize');
-    if (minBtn) minBtn.classList.add('hidden');
+    if (minBtn) {
+      minBtn.classList.add('hidden');
+      if (typeof currentContentType !== 'undefined' && currentContentType !== 'live') {
+        minBtn.innerHTML = '<i class="fa-solid fa-arrow-left text-white text-lg"></i>';
+      } else {
+        minBtn.innerHTML = '<i class="fa-solid fa-compress text-blue-400 text-sm"></i>';
+      }
+    }
 
+    // Bloquear landscape al entrar fullscreen
     try {
       if (this.container.requestFullscreen) {
         this.container.requestFullscreen().catch(() => {});
@@ -682,24 +866,22 @@ class VideoPlayerManager {
 
     try {
       if (window.screen && window.screen.orientation && typeof window.screen.orientation.lock === 'function') {
-        const p = window.screen.orientation.lock('landscape');
-        if (p && typeof p.catch === 'function') p.catch(() => {});
+        window.screen.orientation.lock('landscape').catch(() => {});
       }
     } catch (e) {}
 
-    // FASE 6: Notificar a TVNavigation que estamos en pantalla completa
     if (window.tvNavigation && typeof window.tvNavigation.setInFullscreen === 'function') {
       window.tvNavigation.setInFullscreen(true);
     }
 
     this.showToast("Pantalla Completa 🖥️");
-    this.resetControlsTimeout();
+    this.adjustPlayerForOrientation();
   }
 
   exitFullscreenMode() {
-    // 1. Remove CSS classes first (Guarantees immediate visual exit!)
     this.container.classList.remove('fullscreen-player');
     document.body.classList.remove('in-fullscreen');
+    this.showControls(); // Mostrar controles al salir
 
     const icon = document.getElementById('btn-fs-icon');
     if (icon) icon.className = 'fa-solid fa-expand text-base';
@@ -707,34 +889,44 @@ class VideoPlayerManager {
     const minBtn = document.getElementById('btn-player-minimize');
     if (minBtn) minBtn.classList.add('hidden');
 
-    // 2. Safely exit HTML5 Fullscreen without blocking
     if (document.fullscreenElement || document.webkitFullscreenElement) {
       try {
-        if (document.exitFullscreen) {
-          document.exitFullscreen().catch(() => {});
-        } else if (document.webkitExitFullscreen) {
-          document.webkitExitFullscreen();
-        }
+        if (document.exitFullscreen) document.exitFullscreen().catch(() => {});
+        else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
       } catch (e) {}
     }
 
-    // 3. Unlock orientation safely
+    // SI ESTAMOS EN VOD O SERIES, AL MINIMIZAR SE DETIENE Y SE OCULTA (RETORNO AL MENU PRINCIPAL)
+    if (typeof currentContentType !== 'undefined' && currentContentType !== 'live') {
+       this.stopPlayback();
+       this.container.classList.add('hidden');
+    }
+
     try {
       if (window.screen && window.screen.orientation && typeof window.screen.orientation.unlock === 'function') {
-        const p = window.screen.orientation.unlock();
-        if (p && typeof p.catch === 'function') p.catch(() => {});
+        window.screen.orientation.unlock().catch(() => {});
       }
     } catch (e) {}
 
-    // FASE 6: Notificar a TVNavigation que salimos de pantalla completa
     if (window.tvNavigation && typeof window.tvNavigation.setInFullscreen === 'function') {
       window.tvNavigation.setInFullscreen(false);
     }
 
     this.showToast("Vista normal");
-    this.resetControlsTimeout();
+    this.adjustPlayerForOrientation();
   }
 
+  // =========================================================
+  // TOGGLE CONTROLES CON CLICK EN EL VIDEO
+  // =========================================================
+  togglePlayerControls() {
+    if (this.isLocked) return;
+    this.toggleControls();
+  }
+
+  // =========================================================
+  // RESTANTES MÉTODOS (sin cambios críticos de funcionalidad)
+  // =========================================================
   togglePiP() {
     if (document.pictureInPictureElement) {
       document.exitPictureInPicture().catch(() => {});
@@ -772,7 +964,7 @@ class VideoPlayerManager {
     }
   }
 
-  // Sleep Timer (15, 30, 45, 60, 90 min)
+  // Sleep Timer
   setSleepTimer(minutes) {
     clearInterval(this.sleepTimerInterval);
     const badge = document.getElementById('player-sleep-badge');
@@ -806,12 +998,7 @@ class VideoPlayerManager {
   }
 
   initTouchGestures() {
-    let startX = 0;
-    let startY = 0;
-    let isTracking = false;
-    let gestureType = null;
-    let lastTap = 0;
-
+    let startX = 0, startY = 0, isTracking = false, gestureType = null, lastTap = 0;
     const el = this.container;
 
     el.addEventListener('touchstart', (e) => {
@@ -829,6 +1016,7 @@ class VideoPlayerManager {
         const currentTime = new Date().getTime();
         const tapLength = currentTime - lastTap;
         if (tapLength < 280 && tapLength > 50) {
+          // Doble tap: click central = play/pause, lados = cambiar canal
           if (touchXRelative < rect.width * 0.35) {
             this.playPreviousChannel();
           } else if (touchXRelative > rect.width * 0.65) {
@@ -846,14 +1034,10 @@ class VideoPlayerManager {
       if (!isTracking || this.isLocked || e.touches.length !== 1) return;
       const touch = e.touches[0];
       const deltaY = startY - touch.clientY;
-
       if (Math.abs(deltaY) > 15) {
         const step = deltaY / 300;
-        if (gestureType === 'brightness') {
-          this.adjustBrightness(step);
-        } else {
-          this.adjustVolume(step);
-        }
+        if (gestureType === 'brightness') this.adjustBrightness(step);
+        else this.adjustVolume(step);
         startY = touch.clientY;
       }
     }, { passive: true });
@@ -861,22 +1045,20 @@ class VideoPlayerManager {
     el.addEventListener('touchend', () => {
       isTracking = false;
       gestureType = null;
-      setTimeout(() => this.hideHUD(), 1200);
+      setTimeout(() => this.hideHUD(), 1100);
     });
 
+    // Click en el video: mostrar/ocultar controles
     this.container.addEventListener('click', (e) => {
       if (this.isLocked) return;
       if (e.target.closest('button') || e.target.closest('input') || e.target.closest('select')) return;
-
-      if (this.overlay.classList.contains('hidden-controls')) {
-        this.overlay.classList.remove('hidden-controls');
-        this.resetControlsTimeout();
-      } else {
-        this.overlay.classList.add('hidden-controls');
-      }
+      this.togglePlayerControls();
     });
   }
 
+  // =========================================================
+  // HUD gestos: brillo (arrastre vertical izq) y volumen (der)
+  // =========================================================
   adjustBrightness(delta) {
     this.brightness = Math.min(1.0, Math.max(0.15, this.brightness + delta));
     this.video.style.filter = `brightness(${this.brightness})`;
@@ -892,53 +1074,116 @@ class VideoPlayerManager {
     this.showHUD(icon, pct);
   }
 
+  /**
+   * Control de volumen del modal "Audio y Subtítulos".
+   * Funciona igual con el reproductor WebView y con el ExoPlayer nativo.
+   */
+  onVolumeSlider(value) {
+    const v = Math.min(1, Math.max(0, (parseFloat(value) || 0) / 100));
+    this.setVolumeLevel(v);
+    const label = document.getElementById('player-volume-value');
+    if (label) label.textContent = Math.round(v * 100) + '%';
+  }
+
+  /** Refleja el volumen actual en el slider del modal. */
+  syncVolumeUI() {
+    const slider = document.getElementById('player-volume-slider');
+    const label = document.getElementById('player-volume-value');
+    const v = this.volume != null ? this.volume : 1.0;
+    if (slider) slider.value = Math.round(v * 100);
+    if (label) label.textContent = Math.round(v * 100) + '%';
+  }
+
+  /**
+   * Ajusta el volumen del reproductor (para el reproductor nativo ExoPlayer
+   * el volumen se controla desde el propio player nativo).
+   */
+  setVolumeLevel(volume) {
+    const v = Math.min(1, Math.max(0, volume));
+    this.volume = v;
+
+    if (this.isExoPlayerActive && window.exoPlayerPlugin && window.exoPlayerPlugin.setVolume) {
+      try { window.exoPlayerPlugin.setVolume(v); } catch (e) {}
+    } else {
+      this.video.volume = v;
+    }
+
+    const pct = Math.round(v * 100);
+    const icon = pct === 0 ? 'fa-solid fa-volume-xmark text-red-400' : (pct < 50 ? 'fa-solid fa-volume-low text-blue-400' : 'fa-solid fa-volume-high text-blue-400');
+    this.showHUD(icon, pct);
+  }
+
+  /**
+   * Botones FISICOS del dispositivo (volumen +/-) y teclas del teclado.
+   * Android emite keydown con keyCode 24 (subir volumen) y 25 (bajar volumen).
+   */
+  initHardwareVolumeKeys() {
+    document.addEventListener('keydown', (e) => {
+      const code = e.keyCode || e.which;
+      const key = e.key;
+
+      // Volumen + / -
+      if (code === 24 || key === 'VolumeUp') {
+        e.preventDefault();
+        this.setVolumeLevel(this.volume + 0.1);
+        return;
+      }
+      if (code === 25 || key === 'VolumeDown') {
+        e.preventDefault();
+        this.setVolumeLevel(this.volume - 0.1);
+        return;
+      }
+      // Silencio (mute)
+      if (code === 173 || key === 'VolumeMute') {
+        e.preventDefault();
+        this.setVolumeLevel(this.volume > 0 ? 0 : 0.5);
+        return;
+      }
+    });
+  }
+
   showHUD(iconClass, percent) {
     if (!this.hud) return;
-    this.hudIcon.className = iconClass + ' text-xl';
+    this.hudIcon.className = iconClass + ' text-base';
     this.hudBar.style.width = `${percent}%`;
     this.hudText.innerText = `${percent}%`;
     this.hud.classList.add('show');
+    // Garantizar que se oculte siempre (evita que quede pegado en pantalla)
+    clearTimeout(this._hudTimer);
+    this._hudTimer = setTimeout(() => this.hideHUD(), 1100);
   }
 
   hideHUD() {
+    clearTimeout(this._hudTimer);
     if (this.hud) this.hud.classList.remove('show');
-  }
-
-  resetControlsTimeout() {
-    clearTimeout(this.controlsTimer);
-    if (!this.isLocked) {
-      this.overlay.classList.remove('hidden-controls');
-      this.controlsTimer = setTimeout(() => {
-        if (!this.video.paused && !this.isLocked) {
-          this.overlay.classList.add('hidden-controls');
-        }
-      }, 4200);
-    }
   }
 
   initVideoEvents() {
     this.video.addEventListener('loadedmetadata', () => {
-      console.log('[IPTV] LOADED METADATA:', {
-        width: this.video.videoWidth,
-        height: this.video.videoHeight,
-        duration: this.video.duration
-      });
+      console.log('[IPTV] LOADED METADATA');
+      this.video.muted = false;
+      this.video.volume = 1.0;
       this.updateQualityBadge();
     });
 
     this.video.addEventListener('playing', () => {
       console.log('[IPTV] VIDEO PLAYING');
-      clearTimeout(this.vodStartTimer); // arranque OK: cancelar watchdog externo
+      this.video.muted = false;
+      this.video.volume = 1.0;
+      clearTimeout(this.vodStartTimer);
       this.showLoading(false);
       this.hideError();
       this.hideBgRetry();
       this.updatePlayIcon(true);
       this.updateQualityBadge();
+      this.showControls();
+      this.resetControlsTimeout();
     });
 
     this.video.addEventListener('pause', () => {
       this.updatePlayIcon(false);
       this.overlay.classList.remove('hidden-controls');
+      this.showControls();
     });
 
     this.video.addEventListener('waiting', () => {
@@ -947,13 +1192,7 @@ class VideoPlayerManager {
     });
 
     this.video.addEventListener('error', () => {
-      console.error('[IPTV] VIDEO ERROR:', {
-        code: this.video.error?.code,
-        message: this.video.error?.message,
-        source: this.video.currentSrc,
-        networkState: this.video.networkState,
-        readyState: this.video.readyState
-      });
+      console.error('[IPTV] VIDEO ERROR:', this.video.error?.message);
     });
 
     const onFsChange = () => {
@@ -964,77 +1203,197 @@ class VideoPlayerManager {
         if (icon) icon.className = 'fa-solid fa-expand text-base';
         const minBtn = document.getElementById('btn-player-minimize');
         if (minBtn) minBtn.classList.add('hidden');
+        if (window.tvNavigation && typeof window.tvNavigation.setInFullscreen === 'function') {
+          window.tvNavigation.setInFullscreen(false);
+        }
       }
     };
     document.addEventListener('fullscreenchange', onFsChange);
     document.addEventListener('webkitfullscreenchange', onFsChange);
   }
 
-  showLoading(show) {
-    if (this.loading) this.loading.classList.toggle('hidden', !show);
-  }
-
-  showIdleState(countryName = 'Canales en vivo', channelCount = 0) {
+  // =========================================================
+  // MANEJO DE ERRORES Y REINTENTOS
+  // =========================================================
+  handleStreamFailInBackground() {
     this.showLoading(false);
-    this.hideError();
-    this.hideBgRetry();
-    const idleEl = document.getElementById('player-idle');
-    const idleSub = document.getElementById('player-idle-sub');
-    const idleTitle = document.getElementById('player-idle-title');
-    if (idleTitle) idleTitle.innerText = countryName;
-    if (idleSub) idleSub.innerText = channelCount > 0 
-      ? `${channelCount} canales disponibles. Toca cualquier canal para reproducir.`
-      : "Selecciona un canal de la lista para iniciar la reproducción.";
-    if (idleEl) idleEl.classList.remove('hidden');
-  }
+    this.isExoPlayerActive = false;
 
-  hideIdle() {
-    const idleEl = document.getElementById('player-idle');
-    if (idleEl) idleEl.classList.add('hidden');
-  }
+    if (this.bgRetryCount < this.maxBgRetries) {
+      this.bgRetryCount++;
+      const retryMsg = `Reintentando señal (${this.bgRetryCount}/${this.maxBgRetries})...`;
+      this.showBgRetry(true, retryMsg);
+      clearTimeout(this.bgRetryTimer);
+      this.bgRetryTimer = setTimeout(() => {
+        if (this.currentChannel) {
+          this.play(this.currentChannel, true);
+        }
+      }, 2000);
+    } else {
+      clearTimeout(this.bgRetryTimer);
+      this.hideBgRetry();
+      this.showLoading(false);
 
-  showError(title = "Canal no disponible", detail = "Por favor elige otro canal o actualiza la lista.") {
-    if (this.errorOverlay) {
-      if (this.errorText) {
-        this.errorText.innerHTML = `
-          <span class="font-bold text-amber-400 text-sm block mb-1">${title}</span>
-          <span class="text-gray-300 text-[11px] leading-relaxed block">${detail}</span>
-        `;
+      if (this.hls) {
+        try { this.hls.destroy(); } catch (e) {}
+        this.hls = null;
       }
-      this.errorOverlay.classList.remove('hidden');
+      // Detener la superficie nativa si estaba reproduciendo
+      if (this.isExoPlayerActive && window.exoPlayerPlugin) {
+        try { window.exoPlayerPlugin.stop(); } catch (e) {}
+      }
+      this.isExoPlayerActive = false;
+      this.video.pause();
+      this.video.removeAttribute('src');
+      this.video.load();
+
+      const deadCh = this.currentChannel;
+      if (deadCh) {
+        if (typeof dataService !== 'undefined' && dataService) {
+          dataService.markChannelDead(deadCh.url);
+        }
+        if (typeof markChannelCardOffline === 'function') {
+          markChannelCardOffline(deadCh.id);
+        }
+      }
+
+      const chName = deadCh ? deadCh.name : 'Este canal';
+      this.showError("Canal temporalmente inactivo", `La señal de "${chName}" no respondió tras ${this.maxBgRetries} intentos.`);
+      this.showToast(`⚠️ ${chName}: Canal temporalmente inactivo`);
     }
   }
 
-  hideError() {
-    if (this.errorOverlay) this.errorOverlay.classList.add('hidden');
+  playNextChannel(isAutoSkip = false) {
+    clearTimeout(this.bgRetryTimer);
+    this.hideBgRetry();
+    if (!allChannels || allChannels.length === 0) return;
+
+    let currentIdx = allChannels.findIndex(c => c.url === this.currentChannel?.url || c.id === this.currentChannel?.id);
+    if (currentIdx === -1) currentIdx = 0;
+
+    let nextIdx = (currentIdx + 1) % allChannels.length;
+    let attempts = 0;
+    while (attempts < allChannels.length && dataService && dataService.isChannelDead(allChannels[nextIdx].url)) {
+      nextIdx = (nextIdx + 1) % allChannels.length;
+      attempts++;
+    }
+
+    if (attempts >= allChannels.length) {
+      this.showError("No hay señales disponibles en esta lista actualmente.");
+      return;
+    }
+
+    const nextCh = allChannels[nextIdx];
+    if (isAutoSkip) this.showToast(`Señal caída. Sintonizando: ${nextCh.name} 📺`);
+    else this.showToast(`Siguiente: ${nextCh.name} 📺`);
+    playSelectedChannel(nextCh);
   }
 
-  showToast(msg) {
-    if (typeof showToast === 'function') {
-      showToast(msg);
+  playPreviousChannel() {
+    clearTimeout(this.bgRetryTimer);
+    this.hideBgRetry();
+    if (!allChannels || allChannels.length === 0) return;
+
+    let currentIdx = allChannels.findIndex(c => c.url === this.currentChannel?.url || c.id === this.currentChannel?.id);
+    if (currentIdx === -1) currentIdx = 0;
+
+    let prevIdx = (currentIdx - 1 + allChannels.length) % allChannels.length;
+    const prevCh = allChannels[prevIdx];
+    this.showToast(`Anterior: ${prevCh.name} 📺`);
+    playSelectedChannel(prevCh);
+  }
+
+  retryNow() {
+    clearTimeout(this.bgRetryTimer);
+    this.bgRetryCount = 0;
+    if (this.currentChannel) {
+      this.play(this.currentChannel);
     }
   }
 
-  // Audio & Subtitles Tracks Management
+  showBgRetry(show, text = 'Reconectando en segundo plano...') {
+    if (this.bgRetryBadge) {
+      this.bgRetryBadge.classList.toggle('hidden', !show);
+      const spanEl = this.bgRetryBadge.querySelector('span');
+      if (spanEl && text) spanEl.innerText = text;
+    }
+  }
+
+  hideBgRetry() {
+    if (this.bgRetryBadge) this.bgRetryBadge.classList.add('hidden');
+  }
+
+  updateQualityBadge() {
+    const qBadge = document.getElementById('hud-quality-badge');
+    if (!qBadge) return;
+    if (this.video.videoHeight >= 1080) { qBadge.innerText = 'FHD'; qBadge.classList.remove('hidden'); }
+    else if (this.video.videoHeight >= 720) { qBadge.innerText = 'HD'; qBadge.classList.remove('hidden'); }
+    else if (this.video.videoHeight > 0) { qBadge.innerText = 'SD'; qBadge.classList.remove('hidden'); }
+    else { qBadge.innerText = 'EN VIVO'; }
+  }
+
+  updateChannelMetadata(channel) {
+    const titleEl = document.getElementById('hud-channel-title');
+    const groupEl = document.getElementById('hud-channel-group');
+    const logoEl = document.getElementById('hud-channel-logo');
+    const tvTitleEl = document.getElementById('tv-hud-channel-title');
+
+    if (titleEl) titleEl.innerText = channel.name || 'Canal en vivo';
+    if (tvTitleEl) tvTitleEl.innerText = channel.name || 'Canal en vivo';
+    if (groupEl) groupEl.innerText = channel.group || 'General';
+
+    if (logoEl) {
+      if (channel.logo) { logoEl.src = channel.logo; logoEl.classList.remove('hidden'); }
+      else { logoEl.classList.add('hidden'); }
+    }
+  }
+
+  // =========================================================
+  // FULLSCREEN & MINIMIZAR
+  // =========================================================
+  toggleFullscreen() {
+    const isCurrentlyFs = this.container.classList.contains('fullscreen-player') || !!document.fullscreenElement || !!document.webkitFullscreenElement;
+    if (!isCurrentlyFs) this.enterFullscreenMode();
+    else this.exitFullscreenMode();
+  }
+
+  exitFullscreenMode() {
+    this.container.classList.remove('fullscreen-player');
+    document.body.classList.remove('in-fullscreen');
+
+    const icon = document.getElementById('btn-fs-icon');
+    if (icon) icon.className = 'fa-solid fa-expand text-base';
+    const minBtn = document.getElementById('btn-player-minimize');
+    if (minBtn) minBtn.classList.add('hidden');
+
+    if (document.fullscreenElement || document.webkitFullscreenElement) {
+      try { if (document.exitFullscreen) document.exitFullscreen().catch(() => {}); else if (document.webkitExitFullscreen) document.webkitExitFullscreen(); } catch (e) {}
+    }
+    try { if (window.screen && window.screen.orientation && typeof window.screen.orientation.unlock === 'function') { window.screen.orientation.unlock().catch(() => {}); } } catch (e) {}
+
+    if (window.tvNavigation && typeof window.tvNavigation.setInFullscreen === 'function') {
+      window.tvNavigation.setInFullscreen(false);
+    }
+    this.showToast("Vista normal");
+    this.resetControlsTimeout();
+    this.adjustPlayerForOrientation();
+  }
+
+  // =========================================================
+  // AUDIO / SUBTÍTULOS
+  // =========================================================
   getAudioTracks() {
     if (this.hls && this.hls.audioTracks && this.hls.audioTracks.length > 0) {
       return this.hls.audioTracks.map((t, idx) => ({
-        id: idx,
-        name: t.name || t.lang || `Pista ${idx + 1}`,
-        lang: t.lang || '',
-        active: this.hls.audioTrack === idx
+        id: idx, name: t.name || t.lang || `Audio ${idx+1}`, lang: t.lang || '',
+        active: this.hls.audioTrack === idx, source: 'hlsjs'
       }));
     }
     if (this.video && this.video.audioTracks && this.video.audioTracks.length > 0) {
       const tracks = [];
       for (let i = 0; i < this.video.audioTracks.length; i++) {
         const t = this.video.audioTracks[i];
-        tracks.push({
-          id: i,
-          name: t.label || t.language || `Audio ${i + 1}`,
-          lang: t.language || '',
-          active: t.enabled
-        });
+        tracks.push({ id: i, name: t.label || t.language || `Audio ${i+1}`, lang: t.language || '', active: t.enabled, source: 'native' });
       }
       return tracks;
     }
@@ -1044,22 +1403,15 @@ class VideoPlayerManager {
   getSubtitleTracks() {
     if (this.hls && this.hls.subtitleTracks && this.hls.subtitleTracks.length > 0) {
       return this.hls.subtitleTracks.map((t, idx) => ({
-        id: idx,
-        name: t.name || t.lang || `Subtítulo ${idx + 1}`,
-        lang: t.lang || '',
-        active: this.hls.subtitleTrack === idx
+        id: idx, name: t.name || t.lang || `Subtítulo ${idx+1}`, lang: t.lang || '',
+        active: this.hls.subtitleTrack === idx, source: 'hlsjs'
       }));
     }
     if (this.video && this.video.textTracks && this.video.textTracks.length > 0) {
       const tracks = [];
       for (let i = 0; i < this.video.textTracks.length; i++) {
         const t = this.video.textTracks[i];
-        tracks.push({
-          id: i,
-          name: t.label || t.language || `Subtítulo ${i + 1}`,
-          lang: t.language || '',
-          active: t.mode === 'showing'
-        });
+        tracks.push({ id: i, name: t.label || t.language || `Subtítulo ${i+1}`, lang: t.language || '', active: t.mode === 'showing', source: 'native' });
       }
       return tracks;
     }
@@ -1067,39 +1419,28 @@ class VideoPlayerManager {
   }
 
   setAudioTrack(trackId) {
-    if (this.hls && this.hls.audioTracks) {
-      this.hls.audioTrack = trackId;
-      console.log('[IPTV] Pista de audio cambiada a:', trackId);
-      this.renderTracksUI();
-      return;
-    }
+    if (this.hls && this.hls.audioTracks) { this.hls.audioTrack = trackId; this.renderTracksUI(); return true; }
     if (this.video && this.video.audioTracks) {
-      for (let i = 0; i < this.video.audioTracks.length; i++) {
-        this.video.audioTracks[i].enabled = (i === trackId);
-      }
+      for (let i = 0; i < this.video.audioTracks.length; i++) this.video.audioTracks[i].enabled = (i === trackId);
       this.renderTracksUI();
     }
+    return false;
   }
 
   setSubtitleTrack(trackId) {
-    if (this.hls && this.hls.subtitleTracks) {
-      this.hls.subtitleTrack = trackId; // -1 to disable
-      console.log('[IPTV] Subtítulo cambiado a:', trackId);
-      this.renderTracksUI();
-      return;
-    }
+    if (this.hls && this.hls.subtitleTracks) { this.hls.subtitleTrack = trackId; this.renderTracksUI(); return true; }
     if (this.video && this.video.textTracks) {
-      for (let i = 0; i < this.video.textTracks.length; i++) {
-        this.video.textTracks[i].mode = (i === trackId) ? 'showing' : 'disabled';
-      }
+      for (let i = 0; i < this.video.textTracks.length; i++) this.video.textTracks[i].mode = (i === trackId) ? 'showing' : 'disabled';
       this.renderTracksUI();
     }
+    return false;
   }
 
   openTracksModal() {
     const modal = document.getElementById('modal-audio-subtitles');
     if (!modal) return;
     this.renderTracksUI();
+    this.syncVolumeUI();
     modal.classList.add('show', 'active');
   }
 
@@ -1108,49 +1449,94 @@ class VideoPlayerManager {
     if (modal) modal.classList.remove('show', 'active');
   }
 
+    /** Muestra el codec, los canales y el decoder REAL del motor activo. */
+  async renderEngineDiagnostic() {
+    const box = document.getElementById('player-engine-diag');
+    if (!box) return;
+    try {
+      const info = await this.getActiveEngineAudioInfo();
+      if (!info) { box.innerHTML = ''; return; }
+      const engine = this.isExoPlayerActive ? 'Media3' : 'WebView (HLS.js)';
+      const codec = info.mimeType || 'desconocido';
+      const ch = info.channels ? (info.channels + ' canales') : '?';
+      const warn = (info.hasAudio === false)
+        ? '<span class="text-red-400 font-semibold">SIN PISTA DE AUDIO</span>'
+        : '';
+      const vol = (info.volume !== undefined)
+        ? ' - vol ' + Math.round(info.volume * 100) + '%' : '';
+
+      // --- Diagnostico del MOTOR: renderer FFmpeg + decoder REAL usado ---
+      let extra = '';
+      if (this.isExoPlayerActive && window.exoPlayerPlugin
+          && typeof window.exoPlayerPlugin.getRendererInfo === 'function') {
+        const ri = await window.exoPlayerPlugin.getRendererInfo();
+        if (ri && ri.decoderUsed) {
+          const ffmpegOk = !!ri.ffmpegRan;
+          extra += '<div class="p-2 bg-gray-950/70 rounded-xl text-[10px] mt-1.5 leading-relaxed">'
+            + '<div class="flex items-center justify-between gap-2">'
+            + '<span class="text-gray-400"><i class="fa-solid fa-microchip mr-1"></i>decoder</span>'
+            + '<span class="' + (ffmpegOk ? 'text-emerald-400 font-bold' : 'text-amber-300 font-semibold') + '">'
+            + this._esc(ri.decoderUsed) + (ffmpegOk ? ' (FFmpeg)' : '') + '</span>'
+            + '</div>'
+            + '<div class="flex items-center justify-between gap-2">'
+            + '<span class="text-gray-400"><i class="fa-solid fa-puzzle-piece mr-1"></i>renderer FFmpeg</span>'
+            + '<span class="' + (ri.ffmpegRendererLoaded ? 'text-emerald-400' : 'text-red-400') + '">'
+            + (ri.ffmpegRendererLoaded ? 'registrado' : 'NO disponible')
+            + (ri.hideUnreliableFromHardware ? ' - oculta AC3 al hw' : ' - sin ocultar') + '</span>'
+            + '</div>'
+            + '<div class="flex items-center justify-between gap-2">'
+            + '<span class="text-gray-400"><i class="fa-solid fa-tv mr-1"></i>hardware anuncia</span>'
+            + '<span class="text-gray-300 text-right">'
+            + this._esc(ri.hardwareClaimsEac3 ? 'E-AC-3/AC-3 (origen del bug)' : 'ninguno') + '</span>'
+            + '</div>'
+            + (ri.lastPlaybackError
+              ? '<div class="text-red-400 mt-1 break-all">ultimo error: ' + this._esc(ri.lastPlaybackError) + '</div>'
+              : '')
+            + '</div>';
+        }
+      }
+
+      box.innerHTML = '<div class="p-2.5 bg-gray-900/60 rounded-xl text-[11px] text-gray-300 flex items-center justify-between gap-2">'
+        + '<span><i class="fa-solid fa-microchip text-blue-400 mr-1.5"></i>' + engine + '</span>'
+        + '<span class="text-gray-400">' + codec + ' - ' + ch + vol + warn + '</span>'
+        + '</div>' + extra;
+    } catch (e) {
+      box.innerHTML = '';
+    }
+  }
+
+  _esc(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+
   renderTracksUI() {
+    // Diagnostico del motor ACTIVO: codec real y nº de canales de la pista.
+    this.renderEngineDiagnostic();
     const audioContainer = document.getElementById('player-audio-tracks-list');
     const subContainer = document.getElementById('player-subtitle-tracks-list');
     if (!audioContainer || !subContainer) return;
 
-    // 1. Audio Tracks
     const audioTracks = this.getAudioTracks();
     audioContainer.innerHTML = '';
     if (audioTracks.length === 0) {
-      audioContainer.innerHTML = `
-        <div class="p-2.5 bg-gray-900/60 rounded-xl text-[11px] text-gray-400 flex items-center justify-between">
-          <span>Audio Estéreo / Por defecto</span>
-          <i class="fa-solid fa-check text-blue-400"></i>
-        </div>
-      `;
+      audioContainer.innerHTML = `<div class="p-2.5 bg-gray-900/60 rounded-xl text-[11px] text-gray-400 flex items-center justify-between"><span>Audio Estéreo / Por defecto</span><i class="fa-solid fa-check text-blue-400"></i></div>`;
     } else {
       audioTracks.forEach(t => {
         const item = document.createElement('div');
         item.className = `p-2.5 rounded-xl text-xs font-semibold flex items-center justify-between cursor-pointer transition ${t.active ? 'bg-blue-600 text-white' : 'bg-gray-900 text-gray-300 hover:bg-gray-800'}`;
-        item.innerHTML = `
-          <div class="flex items-center gap-2">
-            <i class="fa-solid fa-volume-high text-xs"></i>
-            <span>${t.name}</span>
-          </div>
-          ${t.active ? '<i class="fa-solid fa-check text-xs"></i>' : ''}
-        `;
+        item.innerHTML = `<div class="flex items-center gap-2"><i class="fa-solid fa-volume-high text-xs"></i><span>${t.name}</span></div>${t.active ? '<i class="fa-solid fa-check text-xs"></i>' : ''}`;
         item.onclick = () => this.setAudioTrack(t.id);
         audioContainer.appendChild(item);
       });
     }
 
-    // 2. Subtitle Tracks
     const subTracks = this.getSubtitleTracks();
     subContainer.innerHTML = '';
-    
-    // "Desactivados" option
     const isNoneActive = (this.hls ? this.hls.subtitleTrack === -1 : true);
     const noneItem = document.createElement('div');
     noneItem.className = `p-2.5 rounded-xl text-xs font-semibold flex items-center justify-between cursor-pointer transition ${isNoneActive ? 'bg-yellow-500 text-black' : 'bg-gray-900 text-gray-300 hover:bg-gray-800'}`;
-    noneItem.innerHTML = `
-      <span>Desactivados</span>
-      ${isNoneActive ? '<i class="fa-solid fa-check text-xs"></i>' : ''}
-    `;
+    noneItem.innerHTML = `<span>Desactivados</span>${isNoneActive ? '<i class="fa-solid fa-check text-xs"></i>' : ''}`;
     noneItem.onclick = () => this.setSubtitleTrack(-1);
     subContainer.appendChild(noneItem);
 
@@ -1158,47 +1544,16 @@ class VideoPlayerManager {
       subTracks.forEach(t => {
         const item = document.createElement('div');
         item.className = `p-2.5 rounded-xl text-xs font-semibold flex items-center justify-between cursor-pointer transition ${t.active ? 'bg-yellow-500 text-black' : 'bg-gray-900 text-gray-300 hover:bg-gray-800'}`;
-        item.innerHTML = `
-          <div class="flex items-center gap-2">
-            <i class="fa-solid fa-closed-captioning text-xs"></i>
-            <span>${t.name}</span>
-          </div>
-          ${t.active ? '<i class="fa-solid fa-check text-xs"></i>' : ''}
-        `;
+        item.innerHTML = `<div class="flex items-center gap-2"><i class="fa-solid fa-closed-captioning text-xs"></i><span>${t.name}</span></div>${t.active ? '<i class="fa-solid fa-check text-xs"></i>' : ''}`;
         item.onclick = () => this.setSubtitleTrack(t.id);
         subContainer.appendChild(item);
       });
     }
   }
 
-  openCurrentInExternalPlayer() {
-    this.closeTracksModal();
-    if (!this.currentChannel || !this.currentChannel.url) {
-      alert("No hay ningún contenido reproduciéndose actualmente.");
-      return;
-    }
-    // Prioridad 1: ExoPlayer nativo (dentro de la app, sin salir)
-    if (window.exoPlayerPlugin && window.exoPlayerPlugin.available) {
-      try {
-        window.exoPlayerPlugin.play(this.currentChannel.url, this.currentChannel.name || 'Contenido IPTV');
-        return;
-      } catch (e) {
-        console.warn('[IPTV] ExoPlayer falló en openCurrentInExternalPlayer:', e.message);
-      }
-    }
-    // Prioridad 2: reproductor externo legacy
-    if (typeof openMediaInExternalPlayer === 'function') {
-      openMediaInExternalPlayer(this.currentChannel.url, this.currentChannel.name || 'Contenido IPTV');
-    }
-  }
-
-  // FASE 2: Métodos auxiliares de audio y derivación externa
   collectHlsAudioTracks() {
     const tracks = this.getAudioTracks();
-    this.audioTrackInfo = {
-      tracks: tracks,
-      source: 'hlsjs'
-    };
+    this.audioTrackInfo = { tracks: tracks, source: 'hlsjs' };
     console.log('[IPTV] Pistas de audio HLS recolectadas:', tracks);
     return tracks;
   }
@@ -1211,70 +1566,110 @@ class VideoPlayerManager {
     return /\.(mp4|mkv|avi|mov|wmv|flv|ts)(?:$|[?#])/i.test(url);
   }
 
-  _redirectToExternalPlayer(msg = 'Abriendo en reproductor externo...') {
-    if (this._externalRedirected) return;
-    this._externalRedirected = true;
+  showLoading(show) {
+    if (this.loading) this.loading.classList.toggle('hidden', !show);
+  }
+
+  hideIdle() {
+    const idleEl = document.getElementById('player-idle');
+    if (idleEl) idleEl.classList.add('hidden');
+  }
+
+  showIdleState(countryName = 'Canales en vivo', channelCount = 0) {
     this.showLoading(false);
-    if (msg && typeof showToast === 'function') {
-      showToast(msg);
-    }
-    // Prioridad 1: ExoPlayer nativo (dentro de la app)
-    if (this.currentChannel && this.currentChannel.url && window.exoPlayerPlugin && window.exoPlayerPlugin.available) {
-      try {
-        window.exoPlayerPlugin.play(this.currentChannel.url, this.currentChannel.name || 'Contenido');
-        return;
-      } catch (e) {
-        console.warn('[IPTV] ExoPlayer falló en _redirectToExternalPlayer:', e.message);
+    this.hideError();
+    this.hideBgRetry();
+    const idleEl = document.getElementById('player-idle');
+    const idleSub = document.getElementById('player-idle-sub');
+    const idleTitle = document.getElementById('player-idle-title');
+    if (idleTitle) idleTitle.innerText = countryName;
+    if (idleSub) idleSub.innerText = channelCount > 0 ? `${channelCount} canales disponibles. Toca cualquier canal para reproducir.` : "Selecciona un canal de la lista para iniciar la reproducción.";
+    if (idleEl) idleEl.classList.remove('hidden');
+  }
+
+  showError(title = "Canal no disponible", detail = "Por favor elige otro canal o actualiza la lista.") {
+    if (this.errorOverlay) {
+      if (this.errorText) {
+        this.errorText.innerHTML = `<span class="font-bold text-amber-400 text-sm block mb-1">${title}</span><span class="text-gray-300 text-[11px] leading-relaxed block">${detail}</span>`;
       }
+      this.errorOverlay.classList.remove('hidden');
     }
-    // Prioridad 2: reproductor externo legacy
-    if (this.currentChannel && this.currentChannel.url && typeof openMediaInExternalPlayer === 'function') {
-      openMediaInExternalPlayer(this.currentChannel.url, this.currentChannel.name || 'Contenido');
-    }
+  }
+
+  hideError() {
+    if (this.errorOverlay) this.errorOverlay.classList.add('hidden');
+  }
+
+  showToast(msg) {
+    if (typeof showToast === 'function') showToast(msg);
+  }
+
+  destroy() {
+    clearTimeout(this.controlsTimer);
+    clearTimeout(this.bgRetryTimer);
+    clearInterval(this.sleepTimerInterval);
+    if (this.hls) { try { this.hls.destroy(); } catch (e) {} this.hls = null; }
+    this.isExoPlayerActive = false;
   }
 }
 
-// =========================================================
-// Diagnóstico Temporal de Audio & Pistas
-// =========================================================
-function diagnoseVideoAudio(video) {
-  if (!video) return;
+window.VideoPlayerManager = VideoPlayerManager;
 
-  console.log('[AUDIO DIAGNOSTIC]', {
-    muted: video.muted,
-    volume: video.volume,
-    paused: video.paused,
-    source: video.currentSrc,
-    readyState: video.readyState,
-    networkState: video.networkState,
-    error: video.error?.message || null
-  });
-
-  video.addEventListener('loadedmetadata', () => {
-    console.log('[AUDIO METADATA]', {
-      duration: video.duration,
-      width: video.videoWidth,
-      height: video.videoHeight,
-      audioTracksAvailable: video.audioTracks
-        ? video.audioTracks.length
-        : 'API no disponible'
-    });
-  });
-
-  video.addEventListener('playing', () => {
-    console.log('[AUDIO PLAYING]', {
-      muted: video.muted,
-      volume: video.volume
-    });
-  });
+// IPTV Playlist Loader para HLS.js (resuelve 302 y rutas relativas)
+class IPTVPlaylistLoader extends (typeof Hls !== 'undefined' ? Hls.DefaultConfig.loader : Object) {
+  constructor(config) { super(config); }
+  load(context, config, callbacks) {
+    if (context && context.url) {
+      if (context.url.includes('_capacitor_http_interceptor_')) {
+        try { const u = new URL(context.url).searchParams.get('u'); if (u) context.url = decodeURIComponent(u); } catch (e) {}
+      }
+      if (context.url.startsWith('https://localhost/') || context.url.startsWith('http://localhost/')) {
+        try { const urlObj = new URL(context.url); if (window._activeStreamOrigin) { context.url = window._activeStreamOrigin + urlObj.pathname + urlObj.search; } } catch (e) {}
+      }
+    }
+    const origOnSuccess = callbacks.onSuccess;
+    callbacks.onSuccess = (response, stats, ctx, networkDetails) => {
+      try {
+        if (response && typeof response.data === 'string') {
+          let effectiveUrl = response.url || context.url;
+          if (effectiveUrl.includes('_capacitor_http_interceptor_')) {
+            try { const u = new URL(effectiveUrl).searchParams.get('u'); if (u) effectiveUrl = decodeURIComponent(u); } catch (e) {}
+          }
+          if (effectiveUrl && effectiveUrl.startsWith('http') && !effectiveUrl.includes('localhost')) {
+            try { const uObj = new URL(effectiveUrl); window._activeStreamOrigin = uObj.origin; window._activeStreamBase = effectiveUrl.substring(0, effectiveUrl.lastIndexOf('/') + 1); } catch (e) {}
+          }
+          const origin = window._activeStreamOrigin || '';
+          const base = window._activeStreamBase || '';
+          if (origin) {
+            response.data = response.data.replace(/^(?!\s*#)(\/[^\r\n]+)/gm, (match, path) => origin + path);
+            if (base) {
+              response.data = response.data.replace(/^(?!\s*#)(?!https?:\/\/|\/)([^\r\n]+)/gm, (match, rel) => base + rel);
+            }
+            response.data = response.data.replace(/URI=["']([^"']+)["']/g, (match, uri) => {
+              if (uri.startsWith('/')) return 'URI="' + origin + uri + '"';
+              if (!uri.startsWith('http') && base) return 'URI="' + base + uri + '"';
+              return match;
+            });
+          }
+        }
+      } catch (err) {}
+      origOnSuccess(response, stats, ctx, networkDetails);
+    };
+    super.load(context, config, callbacks);
+  }
 }
 
-window.diagnoseVideoAudio = diagnoseVideoAudio;
-
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', () => {
-    diagnoseVideoAudio(document.getElementById('main-video'));
-  });
-} else {
-  diagnoseVideoAudio(document.getElementById('main-video'));
+class IPTVFragmentLoader extends (typeof Hls !== 'undefined' ? Hls.DefaultConfig.loader : Object) {
+  constructor(config) { super(config); }
+  load(context, config, callbacks) {
+    if (context && context.url) {
+      if (context.url.includes('_capacitor_http_interceptor_')) {
+        try { const u = new URL(context.url).searchParams.get('u'); if (u) context.url = decodeURIComponent(u); } catch (e) {}
+      }
+      if (context.url.startsWith('https://localhost/') || context.url.startsWith('http://localhost/')) {
+        try { const urlObj = new URL(context.url); if (window._activeStreamOrigin) { context.url = window._activeStreamOrigin + urlObj.pathname + urlObj.search; } } catch (e) {}
+      }
+    }
+    super.load(context, config, callbacks);
+  }
 }

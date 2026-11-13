@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Splash con el logo CENTRADO (usa para Android < 12 y como windowBackground) -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- Fondo azul noche -->
+    <item android:drawable="@color/splashBackground" />
+
+    <!-- Logo centrado vertical y horizontalmente -->
+    <item
+        android:gravity="center"
+        android:width="132dp"
+        android:height="132dp"
+        android:drawable="@drawable/splash_logo" />
+</layer-list>

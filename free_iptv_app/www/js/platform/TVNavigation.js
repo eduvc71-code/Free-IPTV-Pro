@@ -32,10 +32,9 @@ class TVNavigation {
   }
 
   detectTVMode() {
-    const ua = navigator.userAgent || '';
-    // Android TV / Fire TV no incluyen "Mobile" y mencionan Android TV
-    this.isTVMode = /android tv/i.test(ua) || /aftm|aftl|aftt/i.test(ua) ||
-      (window.matchMedia && window.matchMedia('(pointer: coarse)').matches && /android/i.test(ua) && !/Mobile/i.test(ua));
+    const ua = this.options.userAgent || (typeof navigator !== 'undefined' ? navigator.userAgent : '') || '';
+    // Android TV / Google TV / Fire TV estrictos (nunca un smartphone o tablet táctil)
+    this.isTVMode = /android tv|googletv/i.test(ua) || /aftm|aftl|aftt|aftb|afts|firetv/i.test(ua);
 
     if (this.isTVMode) {
       document.body.classList.add('tv-mode');
@@ -278,7 +277,9 @@ class TVNavigation {
         color: #fff !important;
       }
     `;
-    document.head.appendChild(style);
+    if (document.head) {
+      document.head.appendChild(style);
+    }
   }
 }
 
