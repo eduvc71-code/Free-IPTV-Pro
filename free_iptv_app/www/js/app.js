@@ -1486,7 +1486,7 @@ function highlightContentCategory(catName) {
 function createVodCardElement(vod, numberIndex, isTvLayout = false) {
   const card = document.createElement('div');
   card.id = `vod-${vod.stream_id}`;
-  card.className = `bg-[#10131d] hover:bg-[#1a1f2e] border border-gray-800/80 hover:border-yellow-500/50 rounded-xl overflow-hidden flex flex-col cursor-pointer transition active:scale-95 group shadow-xl`;
+  card.className = `vod-poster-card group`;
   card.setAttribute('tabindex', '0');
 
   card.onclick = () => openVodModal(vod);
@@ -1498,20 +1498,20 @@ function createVodCardElement(vod, numberIndex, isTvLayout = false) {
   };
 
   const posterImg = vod.cover || vod.logo
-    ? `<img src="${vod.cover || vod.logo}" class="w-full h-52 object-cover bg-black group-hover:scale-105 transition duration-300" onerror="this.onerror=null; this.parentElement.innerHTML='<div class=\\'w-full h-52 bg-gray-800 flex items-center justify-center text-yellow-500 text-3xl\\'><i class=\\'fa-solid fa-film\\'></i></div>';">`
-    : `<div class="w-full h-52 bg-gray-800 flex items-center justify-center text-yellow-500 text-3xl"><i class="fa-solid fa-film"></i></div>`;
+    ? `<img src="${vod.cover || vod.logo}" onerror="this.onerror=null; this.parentElement.innerHTML='<div class=\\'w-full h-full bg-gray-800 flex items-center justify-center text-yellow-500 text-3xl\\'><i class=\\'fa-solid fa-film\\'></i></div>';">`
+    : `<div class="w-full h-full bg-gray-800 flex items-center justify-center text-yellow-500 text-3xl"><i class="fa-solid fa-film"></i></div>`;
 
   const yearHtml = vod.year
-    ? `<span class="text-[10px] text-gray-400 bg-black/40 px-1.5 py-0.5 rounded">${vod.year}</span>`
+    ? `<span class="text-[10px] text-gray-400 bg-black/50 px-1.5 py-0.5 rounded">${vod.year}</span>`
     : '';
 
   card.innerHTML = `
-    <div class="relative w-full overflow-hidden bg-black flex-shrink-0">
+    <div class="poster-wrapper">
       ${posterImg}
     </div>
-    <div class="p-2.5 flex flex-col justify-between flex-1">
-      <h4 class="text-xs font-semibold text-gray-100 line-clamp-2 group-hover:text-yellow-400 transition leading-snug">${vod.name}</h4>
-      <div class="flex items-center justify-between mt-2 pt-1 border-t border-white/5">
+    <div class="vod-card-body">
+      <h4 class="text-xs font-bold text-gray-100 line-clamp-2 group-hover:text-yellow-400 transition leading-snug">${vod.name}</h4>
+      <div class="flex items-center justify-between mt-2 pt-1 border-t border-white/10">
         ${yearHtml}
         <span class="text-[10px] text-gray-400 truncate max-w-[100px]">${vod.group || 'Película'}</span>
       </div>
@@ -1523,7 +1523,7 @@ function createVodCardElement(vod, numberIndex, isTvLayout = false) {
 function createSeriesCardElement(series, numberIndex, isTvLayout = false) {
   const card = document.createElement('div');
   card.id = `series-${series.series_id}`;
-  card.className = `bg-[#10131d] hover:bg-[#1a1f2e] border border-gray-800/80 hover:border-purple-500/50 rounded-xl overflow-hidden flex flex-col cursor-pointer transition active:scale-95 group shadow-xl`;
+  card.className = `vod-poster-card group`;
   card.setAttribute('tabindex', '0');
 
   card.onclick = () => openSeriesModal(series);
@@ -1535,20 +1535,20 @@ function createSeriesCardElement(series, numberIndex, isTvLayout = false) {
   };
 
   const posterImg = series.cover || series.logo
-    ? `<img src="${series.cover || series.logo}" class="w-full h-52 object-cover bg-black group-hover:scale-105 transition duration-300" onerror="this.onerror=null; this.parentElement.innerHTML='<div class=\\'w-full h-52 bg-gray-800 flex items-center justify-center text-purple-400 text-3xl\\'><i class=\\'fa-solid fa-clapperboard\\'></i></div>';">`
-    : `<div class="w-full h-52 bg-gray-800 flex items-center justify-center text-purple-400 text-3xl"><i class="fa-solid fa-clapperboard"></i></div>`;
+    ? `<img src="${series.cover || series.logo}" onerror="this.onerror=null; this.parentElement.innerHTML='<div class=\\'w-full h-full bg-gray-800 flex items-center justify-center text-purple-400 text-3xl\\'><i class=\\'fa-solid fa-clapperboard\\'></i></div>';">`
+    : `<div class="w-full h-full bg-gray-800 flex items-center justify-center text-purple-400 text-3xl"><i class="fa-solid fa-clapperboard"></i></div>`;
 
   const yearHtml = series.year
-    ? `<span class="text-[10px] text-gray-400 bg-black/40 px-1.5 py-0.5 rounded">${series.year}</span>`
+    ? `<span class="text-[10px] text-gray-400 bg-black/50 px-1.5 py-0.5 rounded">${series.year}</span>`
     : '';
 
   card.innerHTML = `
-    <div class="relative w-full overflow-hidden bg-black flex-shrink-0">
+    <div class="poster-wrapper">
       ${posterImg}
     </div>
-    <div class="p-2.5 flex flex-col justify-between flex-1">
-      <h4 class="text-xs font-semibold text-gray-100 line-clamp-2 group-hover:text-purple-400 transition leading-snug">${series.name}</h4>
-      <div class="flex items-center justify-between mt-2 pt-1 border-t border-white/5">
+    <div class="vod-card-body">
+      <h4 class="text-xs font-bold text-gray-100 line-clamp-2 group-hover:text-purple-400 transition leading-snug">${series.name}</h4>
+      <div class="flex items-center justify-between mt-2 pt-1 border-t border-white/10">
         ${yearHtml}
         <span class="text-[10px] text-gray-400 truncate max-w-[100px]">${series.group || 'Serie'}</span>
       </div>
