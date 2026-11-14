@@ -1,11 +1,20 @@
 $ErrorActionPreference = "Stop"
 
 Write-Host "=================================================================" -ForegroundColor Cyan
-Write-Host "       GENERADOR Y COMPILADOR DE APK - FREE-IPTV PRO             " -ForegroundColor Cyan
+Write-Host "       GENERADOR Y COMPILADOR DE APK - FREE-IPTV PRO (LIMPIO)   " -ForegroundColor Cyan
 Write-Host "=================================================================" -ForegroundColor Cyan
 Write-Host ""
 
-Write-Host "[Paso 1] Copiar archivos web a Android y sincronizar..." -ForegroundColor Yellow
+Write-Host "[Paso 0] Limpiando build anterior..." -ForegroundColor Yellow
+Set-Location "free_iptv_app/android"
+if ($IsWindows -or $env:OS -like "*Windows*") {
+    .\gradlew.bat clean
+} else {
+    ./gradlew clean
+}
+Set-Location "../.."
+
+Write-Host "[Paso 1] Copiando archivos web a Android y sincronizando Capacitor..." -ForegroundColor Yellow
 Set-Location "free_iptv_app"
 npx cap copy
 npx cap sync
@@ -29,11 +38,11 @@ if (Test-Path $sourceApk) {
     Copy-Item $sourceApk "Free-IPTV-Pro.apk" -Force
     Write-Host ""
     Write-Host "=================================================================" -ForegroundColor Green
-    Write-Host " [EXITO] APK COMPILADA Y GENERADA EXITOSAMENTE                  " -ForegroundColor Green
+    Write-Host " [EXITO] APK COMPILADA LIMPIAMENTE Y GENERADA EXITOSAMENTE      " -ForegroundColor Green
     Write-Host " Ruta del APK: $sourceApk                                         " -ForegroundColor Green
     Write-Host " Copia en raiz: $outputApkName                                    " -ForegroundColor Green
     Write-Host "=================================================================" -ForegroundColor Green
 } else {
-    Write-Host "  [!] Error critico: No se encontro el APK compilado en $sourceApk" -ForegroundColor Red
+    Write-Host "  [!] Error crítico: No se encontró el APK compilado en $sourceApk" -ForegroundColor Red
     exit 1
 }

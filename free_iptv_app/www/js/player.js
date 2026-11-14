@@ -251,15 +251,13 @@ class VideoPlayerManager {
   async play(channel, isSilentBg = false) {
     if (!channel || !channel.url) return;
 
-    // REGLA ESTRICTA: El contenido VOD y Series se reproduce EXCLUSIVAMENTE en reproductor externo (VLC / MX)
+    // REGLA FASE 4: VOD y Series se reproducen PRIMERO internamente.
+    // Solo se derivan a reproductor externo (VLC/MX) como fallback si falla la interna,
+    // o si el usuario selecciona explícitamente "Abrir en reproductor externo".
     if (channel.isVod || channel.type === 'vod' || channel.series_id || channel.episode_id || (window.currentContentType && window.currentContentType !== 'live')) {
-      console.log('[IPTV] VOD/Series detectado: reproducción EXCLUSIVA en reproductor externo');
-      if (typeof openMediaInExternalPlayer === 'function') {
-        openMediaInExternalPlayer(channel.url, channel.name || channel.title || 'Película / Serie');
-      } else if (window.AndroidNativeApp && typeof window.AndroidNativeApp.openExternalPlayer === 'function') {
-        window.AndroidNativeApp.openExternalPlayer(channel.url, channel.name || channel.title || 'Película / Serie');
-      }
-      return;
+      console.log('[IPTV] VOD/Series detectado: intentando reproducción INTERNA primero');
+      // NO hacer return aquí: dejar que el flujo normal de reproducción interna continúe abajo.
+      // El fallback a externo se maneja en los bloques de error de HLS.js y reproducción directa.
     }
 
     // Guard de reentrada: cada play() invalida los callbacks asincronos del
@@ -342,28 +340,17 @@ class VideoPlayerManager {
     //   0 = OFF (solo hardware) | 1 = ON (hardware + FFmpeg de reserva) | 2 = PREFER (FFmpeg primero)
     const extensionMode = this.getExtensionRendererMode();
 
-    // Contenedores/codecs que el WebView NO puede reproducir
+    // Contenedores/codecs que el WebView NO puede reproducir nativamente
     const hardFormat = isTS || /\.(mkv|avi|wmv|flv|m4v|mov)(?:$|[?#])/i.test(streamUrl);
 
-    const needsExo = exoAvailable && !forceWeb && (
+    // FASE 4: VOD y Series se reproducen PRIMERO con HTML5 interno.
+    // Solo se derivan a ExoPlayer nativo como fallback si HTML5 falla.
+    // Solo se derivan a reproductor externo como último recurso.
+    const needsExoFallback = exoAvailable && !forceWeb && (
       forceNative ||
-      isVod ||
       hardFormat ||
       isVodExt
     );
-
-    // [MOD VOD] Forzamos bypass total del HTML5 para VOD y pasamos a ExoPlayer.
-    if (needsExo) {
-      console.log('[IPTV] Derivando directamente a ExoPlayer (VOD o Ext incompatible)');
-      this.showLoading(false);
-      const started = await this.playWithExo(streamUrl, channel, token, extensionMode);
-      if (started) {
-        this.resetControlsTimeout();
-        return;
-      }
-      // Si ExoPlayer no pudo arrancar, se cae al flujo HTML5 de abajo.
-      console.warn('[IPTV] ExoPlayer no arranco, cayendo al flujo HTML5 (Posible error de codec o HLS)');
-    }
 
     // Guardar origen para fragmentos relativos
     try {
@@ -476,7 +463,7 @@ class VideoPlayerManager {
 
     } else {
       // =========================================================
-      // 2. REPRODUCCIÓN DIRECTA (MP4, TS, MKV, AVI, etc.) - HTML5 nativo
+      // 2. REPRODUCCIÓN DIRECTA (MP4, TS, MKV, AVI, etc.) - HTML5 nativo PRIMERO
       // =========================================================
       console.log('[IPTV] Usando reproducción directa HTML5:', streamUrl);
 
@@ -498,22 +485,16 @@ class VideoPlayerManager {
         const errName = error && error.name ? error.name : '';
         const isType = channel && (channel.type === 'vod' || channel.type === 'episode' || channel.type === 'series');
 
-        // Si falló por códec o es VOD/Series, intentar ExoPlayer nativo (fallback real)
+        // Si falló por códec o es VOD/Series, intentar ExoPlayer nativo como FALLBACK
         if (errName === 'NotSupportedError' || isType) {
-          await this.playWithExo(streamUrl, channel, token);
-          return;
-        }
-
-        // Para canales en vivo que fallen, usar ExoPlayer o externo
-        if ((errName === 'NotSupportedError' || isType) && window.exoPlayerPlugin && window.exoPlayerPlugin.available) {
-          try {
-            await this.playWithExo(streamUrl, channel, token);
+          console.log('[IPTV] HTML5 falló, probando ExoPlayer nativo como fallback...');
+          const exoStarted = await this.playWithExo(streamUrl, channel, token);
+          if (exoStarted) {
             return;
-          } catch (e) {
-            console.warn('[IPTV] ExoPlayer no disponible:', e.message);
           }
         }
 
+        // Si ExoPlayer también falló o no está disponible, usar reproductor externo
         if (typeof openMediaInExternalPlayer === 'function') {
           showToast('🔊 Sin soporte interno. Abriendo en reproductor externo...');
           openMediaInExternalPlayer(streamUrl, channel?.name || 'Contenido');
@@ -523,7 +504,7 @@ class VideoPlayerManager {
       });
 
       // Timeout de seguridad: si en 15s no arrancó el contenido DIRECTO de VOD,
-      // probar ExoPlayer nativo.
+      // probar ExoPlayer nativo como fallback.
       // NO se aplica a TV en vivo: un canal lento o un pico de red NO debe
       // reiniciar la transmisión (provocaba cortes constantes).
       clearTimeout(this.vodStartTimer);
