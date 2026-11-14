@@ -918,10 +918,36 @@ button:focus {
   line-height: 1.5;
 }
 
+/* ---------- Indicador de señal en vivo (Fase 2) ---------- */
+.live-signal-indicator {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  background: rgba(255, 0, 85, 0.15);
+  border: 1px solid rgba(255, 0, 85, 0.4);
+  border-radius: var(--radius-full);
+  color: var(--danger);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  box-shadow: 0 0 12px rgba(255, 0, 85, 0.25);
+  animation: pulseLive 2s infinite;
+  z-index: 60;
+  white-space: nowrap;
+}
+
+.live-signal-indicator.hidden {
+  display: none !important;
+}
+
 /* ---------- Utilidades de layout ---------- */
 .flex { display: flex; }
 .flex-col { flex-direction: column; }
 .flex-1 { flex: 1; }
+.grid { display: grid; }
+.grid-cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.grid-cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .items-center { align-items: center; }
 .justify-center { justify-content: center; }
 .justify-between { justify-content: space-between; }
@@ -974,6 +1000,7 @@ button:focus {
 .border-b { border-bottom: 1px solid var(--border-dim); }
 .border-t { border-top: 1px solid var(--border-dim); }
 .shadow-lg { box-shadow: var(--shadow-lg); }
+.shadow-neon { box-shadow: var(--shadow-neon); }
 .backdrop-blur-md { backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }
 .opacity-0 { opacity: 0; }
 .opacity-50 { opacity: 0.5; }
@@ -1920,4 +1947,480 @@ button:focus {
 #tv-epg-panel,
 #tv-player-info-panel {
   display: none !important;
+}
+
+/* =========================================================
+   FASE 2 — CATÁLOGO VOD / SERIES PROFESIONAL
+   Diseño tipo streaming (Netflix-style) con carteles en
+   grid responsivo y scroll vertical.
+   ========================================================= */
+
+/* Contenedor del grid de carteles */
+.vod-grid-container {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 14px;
+  padding: 16px;
+  overflow-y: auto;
+  align-content: start;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.2) #0a0a12;
+}
+
+/* Scrollbar personalizada para WebKit */
+.vod-grid-container::-webkit-scrollbar {
+  width: 8px;
+}
+.vod-grid-container::-webkit-scrollbar-track {
+  background: #0a0a12;
+}
+.vod-grid-container::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+}
+.vod-grid-container::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.4);
+}
+
+/* Tarjeta de cartel profesional */
+.vod-poster-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 220px;
+  background: #10131d;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  overflow: hidden;
+  cursor: pointer;
+  transition: transform 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+.vod-poster-card:hover,
+.vod-poster-card:focus {
+  transform: translateY(-6px) scale(1.03);
+  border-color: #00f3ff;
+  box-shadow: 0 12px 32px rgba(0, 243, 255, 0.25);
+  outline: none;
+  z-index: 10;
+}
+
+/* Contenedor del poster */
+.poster-wrapper {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  background: #000;
+  overflow: hidden;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.poster-wrapper img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.35s ease;
+  display: block;
+}
+
+.vod-poster-card:hover .poster-wrapper img,
+.vod-poster-card:focus .poster-wrapper img {
+  transform: scale(1.08);
+}
+
+/* Overlay con botón de reproducir */
+.poster-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.8) 0%, rgba(0, 0, 0, 0) 60%);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 16px;
+  opacity: 0;
+  transition: opacity 0.25s ease;
+}
+
+.vod-poster-card:hover .poster-overlay,
+.vod-poster-card:focus .poster-overlay {
+  opacity: 1;
+}
+
+.btn-play-poster {
+  width: 44px;
+  height: 44px;
+  background: #00f3ff;
+  color: #001a20;
+  border: none;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 16px;
+  font-weight: bold;
+  transition: transform 0.2s ease, filter 0.2s ease;
+  box-shadow: 0 0 15px rgba(0, 243, 255, 0.6);
+}
+
+.btn-play-poster:hover {
+  transform: scale(1.15);
+  filter: brightness(1.2);
+}
+
+.btn-play-poster i {
+  pointer-events: none;
+}
+
+/* Etiqueta de año */
+.poster-year {
+  position: absolute;
+  bottom: 8px;
+  left: 8px;
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px;
+  z-index: 5;
+}
+
+/* Placeholder cuando no hay imagen */
+.poster-placeholder {
+  width: 100%;
+  height: 100%;
+  background: #1a1a2e;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #666;
+  font-size: 32px;
+}
+
+/* Información del cartel (título + género) */
+.vod-info {
+  padding: 10px 8px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.vod-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: #fff;
+  margin: 0;
+  line-height: 1.3;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.vod-genre {
+  font-size: 10px;
+  color: #8b8ca3;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* Modal VOD / Series — hoja inferior profesional */
+.modal-vod-sheet {
+  background: #0a0a12;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 20px 20px 0 0;
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+  padding: 20px 20px 40px;
+  box-shadow: 0 -20px 40px rgba(0, 0, 0, 0.6);
+}
+
+/* Header del modal de detalle */
+.vod-modal-header {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+
+.vod-modal-poster-big {
+  width: 120px;
+  height: 180px;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #10131d;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  flex-shrink: 0;
+}
+
+.vod-modal-poster-big img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.vod-modal-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.vod-modal-title {
+  font-size: 18px;
+  font-weight: 800;
+  color: #fff;
+  margin: 0 0 8px;
+  line-height: 1.3;
+}
+
+.vod-modal-meta {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.vod-modal-badge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.1);
+  color: #8b8ca3;
+}
+
+.vod-modal-badge.year {
+  background: rgba(0, 243, 255, 0.15);
+  color: #00f3ff;
+  border: 1px solid rgba(0, 243, 255, 0.3);
+}
+
+.vod-modal-plot {
+  font-size: 13px;
+  color: #b0b0c0;
+  line-height: 1.6;
+  margin: 0 0 20px;
+  max-height: 120px;
+  overflow-y: auto;
+}
+
+/* Botón de reproducir en modal */
+.btn-play-modal {
+  width: 100%;
+  padding: 14px;
+  background: #00f3ff;
+  color: #001a20;
+  border: none;
+  border-radius: 12px;
+  font-size: 15px;
+  font-weight: 800;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: transform 0.2s ease, filter 0.2s ease, box-shadow 0.2s ease;
+  box-shadow: 0 0 20px rgba(0, 243, 255, 0.4);
+}
+
+.btn-play-modal:hover {
+  transform: scale(1.02);
+  filter: brightness(1.15);
+  box-shadow: 0 0 30px rgba(0, 243, 255, 0.6);
+}
+
+.btn-play-modal:active {
+  transform: scale(0.98);
+}
+
+/* Botón reproductor externo */
+.btn-play-external {
+  width: 100%;
+  padding: 12px;
+  margin-top: 10px;
+  background: rgba(255, 255, 255, 0.05);
+  color: #b0b0c0;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: all 0.2s ease;
+}
+
+.btn-play-external:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.3);
+  color: #fff;
+}
+
+/* Lista de episodios */
+.episodes-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.episode-item {
+  display: flex;
+  gap: 12px;
+  padding: 10px;
+  background: #10131d;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.episode-item:hover {
+  border-color: #00f3ff;
+  background: rgba(0, 243, 255, 0.05);
+}
+
+.episode-number {
+  width: 32px;
+  height: 32px;
+  background: #00f3ff;
+  color: #001a20;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
+.episode-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.episode-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #fff;
+  margin: 0 0 2px;
+}
+
+.episode-meta {
+  font-size: 11px;
+  color: #8b8ca3;
+}
+
+/* Temporadas tabs */
+.seasons-tabs {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  margin-bottom: 16px;
+  padding-bottom: 8px;
+  scrollbar-width: none;
+}
+
+.seasons-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.season-tab {
+  padding: 8px 16px;
+  background: #10131d;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  color: #8b8ca3;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.season-tab:hover {
+  border-color: #00f3ff;
+  color: #00f3ff;
+}
+
+.season-tab.active {
+  background: #00f3ff;
+  color: #001a20;
+  border-color: #00f3ff;
+}
+
+/* Estado vacío del catálogo */
+.vod-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 20px;
+  text-align: center;
+  color: #8b8ca3;
+}
+
+.vod-empty-state i {
+  font-size: 48px;
+  margin-bottom: 16px;
+  color: rgba(255, 255, 255, 0.15);
+}
+
+.vod-empty-state h3 {
+  font-size: 16px;
+  font-weight: 700;
+  color: #fff;
+  margin: 0 0 8px;
+}
+
+.vod-empty-state p {
+  font-size: 13px;
+  margin: 0;
+  max-width: 300px;
+}
+
+/* Ajustes para móviles pequeños */
+@media (max-width: 576px) {
+  .vod-grid-container {
+    grid-template-columns: repeat(2, minmax(120px, 1fr));
+    gap: 10px;
+    padding: 12px;
+  }
+
+  .vod-poster-card {
+    min-height: 200px;
+  }
+
+  .vod-modal-header {
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .vod-modal-poster-big {
+    width: 100px;
+    height: 150px;
+  }
+}
+
+/* Ajustes para TV landscape (3 columnas) */
+@media (min-width: 760px) {
+  .vod-grid-container {
+    grid-template-columns: repeat(5, minmax(150px, 1fr));
+    gap: 16px;
+    padding: 20px;
+  }
+
+  .vod-poster-card {
+    min-height: 260px;
+  }
 }

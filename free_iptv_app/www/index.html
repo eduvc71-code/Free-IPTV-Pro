@@ -38,6 +38,12 @@
       <button id="tv-btn-content-series" onclick="switchContentType('series')" class="xm-tab" title="Series"><i class="fa-solid fa-clapperboard"></i></button>
     </div>
 
+    <!-- ===== INDICADOR DE SEÑAL EN VIVO (FASE 2) ===== -->
+    <div id="live-signal-indicator" class="live-signal-indicator hidden" title="Señal en vivo activa">
+      <i class="fa-solid fa-circle text-red-500 animate-pulse"></i>
+      <span class="text-[10px] font-bold text-red-400">EN VIVO</span>
+    </div>
+
     <!-- ===== RIGHT: ACCIONES CIRCULARES ===== -->
     <div class="xm-actions">
       <button onclick="switchTab('home')" class="xm-btn" title="Inicio"><i class="fa-solid fa-house"></i></button>
@@ -834,98 +840,99 @@
   </div>
 
   <!-- ========================================== -->
-  <!-- VOD MOVIE DETAIL MODAL                     -->
+  <!-- VOD MOVIE DETAIL MODAL (Fase 2 - Profesional) -->
   <!-- ========================================== -->
   <div id="modal-vod-detail" class="modal-overlay" style="z-index: 99999;" onclick="closeVodDetailModal()">
-    <div class="modal-sheet p-5 max-w-lg mx-auto flex flex-col max-h-[90vh] overflow-hidden" onclick="event.stopPropagation()">
-      <div class="flex items-center justify-between pb-3 border-b border-gray-800 flex-shrink-0">
+    <div class="modal-vod-sheet" onclick="event.stopPropagation()">
+      <div class="flex items-center justify-between pb-4 border-b border-white/10 mb-4 flex-shrink-0">
         <h3 id="vod-modal-title" class="text-sm font-bold text-white truncate flex items-center gap-2">
-          <i class="fa-solid fa-film text-yellow-400"></i> <span id="vod-title-text">Detalle de Película</span>
+          <i class="fa-solid fa-film text-blue-400"></i> <span id="vod-title-text">Detalle de Película</span>
         </h3>
-        <button onclick="closeVodDetailModal()" class="text-gray-400 hover:text-white p-1">
+        <button onclick="closeVodDetailModal()" class="text-gray-400 hover:text-white p-2">
           <i class="fa-solid fa-xmark text-base"></i>
         </button>
       </div>
 
-      <div class="flex-1 overflow-y-auto py-3 space-y-3">
-        <div class="flex gap-3">
-          <img id="vod-modal-poster" src="" class="w-24 h-36 rounded-xl object-cover bg-gray-900 border border-white/10 shadow flex-shrink-0" alt="poster">
-          <div class="flex-1 min-w-0 flex flex-col justify-between">
-            <div>
-              <h4 id="vod-modal-name" class="text-sm font-bold text-gray-100 leading-snug"></h4>
-              <div class="flex flex-wrap items-center gap-1.5 mt-1.5">
-                <span id="vod-modal-year" class="px-2 py-0.5 bg-gray-800 text-gray-300 text-[10px] font-bold rounded"></span>
-                <span id="vod-modal-duration" class="px-2 py-0.5 bg-gray-800 text-gray-300 text-[10px] font-bold rounded"></span>
-                <span id="vod-modal-rating" class="px-2 py-0.5 bg-yellow-500/20 text-yellow-400 text-[10px] font-bold rounded"></span>
-              </div>
-              <p id="vod-modal-genre" class="text-[11px] text-gray-400 mt-2 line-clamp-2"></p>
-            </div>
+      <div class="vod-modal-header">
+        <div class="vod-modal-poster-big">
+          <img id="vod-modal-poster" src="" alt="poster">
+        </div>
+        <div class="vod-modal-info">
+          <h4 id="vod-modal-name" class="vod-modal-title"></h4>
+          <div class="vod-modal-meta">
+            <span id="vod-modal-year" class="vod-modal-badge year"></span>
+            <span id="vod-modal-duration" class="vod-modal-badge"></span>
+            <span id="vod-modal-rating" class="vod-modal-badge"></span>
           </div>
-        </div>
-
-        <div>
-          <h5 class="text-xs font-bold text-gray-300 uppercase tracking-wider mb-1">Sinopsis</h5>
-          <p id="vod-modal-plot" class="text-xs text-gray-300 leading-relaxed max-h-36 overflow-y-auto pr-1 bg-black/40 p-2.5 rounded-xl border border-white/5"></p>
-        </div>
-
-        <div id="vod-modal-cast-container" class="text-[11px] text-gray-400">
-          <span class="font-bold text-gray-300">Reparto: </span>
-          <span id="vod-modal-cast"></span>
+          <p id="vod-modal-genre" class="text-xs text-gray-400 mt-2"></p>
+          <div class="mt-3">
+            <h5 class="text-xs font-bold text-gray-300 uppercase tracking-wider mb-1">Sinopsis</h5>
+            <p id="vod-modal-plot" class="vod-modal-plot"></p>
+          </div>
+          <div id="vod-modal-cast-container" class="mt-3 text-[11px] text-gray-400">
+            <span class="font-bold text-gray-300">Reparto: </span>
+            <span id="vod-modal-cast"></span>
+          </div>
         </div>
       </div>
 
-      <div class="pt-3 pb-8 mb-2 border-t border-gray-800 flex items-center gap-2 flex-shrink-0">
-        <button id="btn-play-vod" onclick="playCurrentVod()" class="w-full py-3.5 bg-yellow-500 hover:bg-yellow-400 text-black font-extrabold rounded-xl text-sm transition shadow-lg shadow-yellow-500/25 active:scale-95 flex items-center justify-center gap-2">
-          <i class="fa-solid fa-arrow-up-right-from-square text-base"></i>
-          <span>Reproducir Película (Reproductor Externo)</span>
+      <div class="pt-4 border-t border-white/10 flex items-center gap-3 flex-shrink-0">
+        <button id="btn-play-vod" onclick="playCurrentVod()" class="btn-play-modal flex items-center justify-center gap-2">
+          <i class="fa-solid fa-play"></i>
+          <span>Reproducir Película</span>
+        </button>
+        <button onclick="openCurrentInExternalPlayer()" class="btn-play-external flex items-center justify-center gap-2">
+          <i class="fa-solid fa-arrow-up-right-from-square"></i>
+          <span>Reproductor Externo</span>
         </button>
       </div>
     </div>
   </div>
 
   <!-- ========================================== -->
-  <!-- SERIES DETAIL & EPISODES MODAL             -->
+  <!-- SERIES DETAIL & EPISODES MODAL (Fase 2 - Profesional) -->
   <!-- ========================================== -->
   <div id="modal-series-detail" class="modal-overlay" style="z-index: 99999;" onclick="closeSeriesDetailModal()">
-    <div class="modal-sheet p-5 max-w-lg mx-auto flex flex-col max-h-[90vh] overflow-hidden" onclick="event.stopPropagation()">
-      <div class="flex items-center justify-between pb-3 border-b border-gray-800 flex-shrink-0">
+    <div class="modal-vod-sheet" onclick="event.stopPropagation()">
+      <div class="flex items-center justify-between pb-4 border-b border-white/10 mb-4 flex-shrink-0">
         <h3 id="series-modal-title" class="text-sm font-bold text-white truncate flex items-center gap-2">
           <i class="fa-solid fa-clapperboard text-purple-400"></i> <span id="series-title-text">Detalle de Serie</span>
         </h3>
-        <button onclick="closeSeriesDetailModal()" class="text-gray-400 hover:text-white p-1">
+        <button onclick="closeSeriesDetailModal()" class="text-gray-400 hover:text-white p-2">
           <i class="fa-solid fa-xmark text-base"></i>
         </button>
       </div>
 
-      <div class="flex-1 overflow-y-auto py-3 space-y-3">
-        <div class="flex gap-3">
-          <img id="series-modal-poster" src="" class="w-24 h-36 rounded-xl object-cover bg-gray-900 border border-white/10 shadow flex-shrink-0" alt="poster">
-          <div class="flex-1 min-w-0 flex flex-col justify-between">
-            <div>
-              <h4 id="series-modal-name" class="text-sm font-bold text-gray-100 leading-snug"></h4>
-              <div class="flex flex-wrap items-center gap-1.5 mt-1.5">
-                <span id="series-modal-year" class="px-2 py-0.5 bg-gray-800 text-gray-300 text-[10px] font-bold rounded"></span>
-                <span id="series-modal-genre" class="px-2 py-0.5 bg-purple-500/20 text-purple-300 text-[10px] font-bold rounded"></span>
-              </div>
-              <p id="series-modal-plot" class="text-[11px] text-gray-300 mt-2 line-clamp-3"></p>
-            </div>
+      <div class="vod-modal-header">
+        <div class="vod-modal-poster-big">
+          <img id="series-modal-poster" src="" alt="poster">
+        </div>
+        <div class="vod-modal-info">
+          <h4 id="series-modal-name" class="vod-modal-title"></h4>
+          <div class="vod-modal-meta">
+            <span id="series-modal-year" class="vod-modal-badge year"></span>
+            <span id="series-modal-genre" class="vod-modal-badge"></span>
+          </div>
+          <div class="mt-3">
+            <h5 class="text-xs font-bold text-gray-300 uppercase tracking-wider mb-1">Sinopsis</h5>
+            <p id="series-modal-plot" class="vod-modal-plot"></p>
           </div>
         </div>
+      </div>
 
-        <!-- Seasons Selector Tabs -->
-        <div>
-          <p class="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">Temporadas</p>
-          <div id="series-seasons-tabs" class="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
-            <!-- Dynamically rendered season tabs -->
-          </div>
+      <!-- Seasons Selector Tabs -->
+      <div class="mb-3">
+        <p class="text-xs font-bold text-gray-300 uppercase tracking-wider mb-2">Temporadas</p>
+        <div id="series-seasons-tabs" class="seasons-tabs">
+          <!-- Dynamically rendered season tabs -->
         </div>
+      </div>
 
-        <!-- Episodes List -->
-        <div>
-          <p class="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">Episodios</p>
-          <div id="series-episodes-list" class="space-y-2 max-h-56 overflow-y-auto pr-1">
-            <!-- Dynamically rendered episodes -->
-          </div>
+      <!-- Episodes List -->
+      <div class="mb-4">
+        <p class="text-xs font-bold text-gray-300 uppercase tracking-wider mb-2">Episodios</p>
+        <div id="series-episodes-list" class="episodes-list">
+          <!-- Dynamically rendered episodes -->
         </div>
       </div>
     </div>

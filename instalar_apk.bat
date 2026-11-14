@@ -7,32 +7,26 @@ echo       INSTALADOR AUTOMATICO DE APK - FREE-IPTV PRO
 echo ================================================================
 echo.
 
-:: 1. Buscar el APK mas reciente en la raiz o en build/outputs
 set "APK_PATH="
 
-if exist "Free-IPTV-Pro-v1.0.19.apk" (
-    set "APK_PATH=Free-IPTV-Pro-v1.0.19.apk"
+if exist "free_iptv_app\android\app\build\outputs\apk\debug\app-debug.apk" (
+    set "APK_PATH=free_iptv_app\android\app\build\outputs\apk\debug\app-debug.apk"
+) else if exist "Free-IPTV-Pro-v1.0.23.apk" (
+    set "APK_PATH=Free-IPTV-Pro-v1.0.23.apk"
 ) else if exist "Free-IPTV-Pro.apk" (
     set "APK_PATH=Free-IPTV-Pro.apk"
-) else if exist "free_iptv_app\android\app\build\outputs\apk\debug\app-debug.apk" (
-    set "APK_PATH=free_iptv_app\android\app\build\outputs\apk\debug\app-debug.apk"
-) else (
-    for %%f in (Free-IPTV-Pro-v1.0.*.apk) do (
-        set "APK_PATH=%%f"
-    )
 )
 
 if "!APK_PATH!"=="" (
-    echo [X] No se encontro ningun archivo APK valido en la raiz.
-    echo     Ejecuta compilar_apk.bat o compilar_apk.ps1 primero.
+    echo [X] No se encontro el APK generado. Ejecuta compilar_apk.bat primero.
     echo.
     pause
     exit /b 1
 )
 
-echo [1/3] APK detectado: !APK_PATH!
+echo [1/3] Usando APK generado en: !APK_PATH!
 
-:: 2. Detectar ADB
+:: Detectar ADB
 set "ADB_CMD=adb"
 %ADB_CMD% devices >nul 2>&1
 if errorlevel 1 (
@@ -62,16 +56,16 @@ if not defined DEVICE_FOUND (
     exit /b 1
 )
 
-echo [3/3] Instalando la aplicacion en el dispositivo...
+echo [3/3] Instalando el nuevo APK en el dispositivo...
 %ADB_CMD% install -r "!APK_PATH!"
 
 if errorlevel 0 (
     echo.
     echo ================================================================
-    echo  [EXITO] APLICACION INSTALADA Y ACTUALIZADA CORRECTAMENTE!
+    echo  [EXITO] NUEVO APK INSTALADO Y ACTUALIZADO CORRECTAMENTE!
     echo ================================================================
     echo.
-    echo Lanzando la aplicacion en el dispositivo...
+    echo Lanzando la aplicacion...
     %ADB_CMD% shell am start -n com.freeiptv.app/.MainActivity
 ) else (
     echo.
