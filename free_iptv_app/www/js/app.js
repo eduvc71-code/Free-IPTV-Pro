@@ -42,6 +42,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   playerManager = new VideoPlayerManager();
   dataService = new IPTVDataService();
 
+  // Exponer instancias al window para uso global (botón Atrás, eventos inline, etc.)
+  window.playerManager = playerManager;
+  window.dataService = dataService;
+
   // Eliminar completamente registros de historial reciente
   try {
     localStorage.removeItem('free_iptv_history_v2');
@@ -62,24 +66,31 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (mobAuto) mobAuto.checked = isAuto;
   if (tvAuto) tvAuto.checked = isAuto;
 
-  // FASE 6: Configurar handler del botón Atrás (Back) para Android TV / Fire TV
+  // FASE 6 + FASE 1: Configurar handler del botón Atrás (Back) para Android TV / Fire TV
   window.tvNavigation.onBack = () => {
     const playerContainer = document.getElementById('player-container');
     const isFullscreen = playerContainer && playerContainer.classList.contains('fullscreen-player');
+    const hasActivePlayback = window.playerManager && window.playerManager.currentChannel;
 
-    // 1. Si está en pantalla completa ➡️ salir al menú SIN detener reproducción
+    // 1. Si hay reproducción de TV en vivo activa ➡️ detener señal y volver al menú principal
+    if (hasActivePlayback && typeof window.returnToMainMenu === 'function') {
+      window.returnToMainMenu();
+      return;
+    }
+
+    // 2. Si está en pantalla completa sin reproducción activa ➡️ salir al menú
     if (isFullscreen && window.playerManager) {
       window.playerManager.exitFullscreenMode();
       return;
     }
 
-    // 2. Si está en una categoría de TV (no home) ➡️ volver al selector de categorías/home
+    // 3. Si está en una categoría de TV (no home) ➡️ volver al selector de categorías/home
     if (window.activeTab && window.activeTab !== 'home' && typeof window.switchTab === 'function') {
       window.switchTab('home');
       return;
     }
 
-    // 3. Si está en pantalla principal ➡️ solicitar confirmación de salida
+    // 4. Si está en pantalla principal sin reproducción ➡️ solicitar confirmación de salida
     if (typeof window.confirmExitApp === 'function') {
       window.confirmExitApp();
     } else if (typeof navigator.app === 'object' && typeof navigator.app.exitApp === 'function') {
@@ -1248,7 +1259,7 @@ function getActiveXtreamAccount() {
   return null;
 }
 
-function switchContentType(type) {
+async function switchContentType(type) {
   if (type !== 'live' && type !== 'vod' && type !== 'series') type = 'live';
   currentContentType = type;
   window.currentContentType = type;
@@ -1261,8 +1272,9 @@ function switchContentType(type) {
   if (isVodOrSeries) {
     if (window.playerManager) {
       try {
-        window.playerManager.stopPlayback();
-        window.playerManager.stop();
+        // CORRECCIÓN FASE 1: await explícito para garantizar detención completa antes de cargar VOD/Series
+        await window.playerManager.stopPlayback();
+        // Nota: se omite la llamada a stop() (método no existe en VideoPlayerManager)
         if (window.playerManager.video) {
           window.playerManager.video.pause();
           window.playerManager.video.removeAttribute('src');
@@ -1275,7 +1287,7 @@ function switchContentType(type) {
       } catch (e) {}
     }
     if (window.exoPlayerPlugin && typeof window.exoPlayerPlugin.stop === 'function') {
-      try { window.exoPlayerPlugin.stop(); } catch (e) {}
+      try { await window.exoPlayerPlugin.stop(); } catch (e) {}
     }
   }
 
@@ -1292,6 +1304,9 @@ function switchContentType(type) {
   } else if (type === 'series') {
     loadSeriesContent();
   }
+
+  // FASE 2: actualizar indicador de señal en vivo
+  updateLiveSignalIndicator();
 }
 
 function updateContentTypeButtons() {
@@ -1322,6 +1337,431 @@ function updateContentTypeButtons() {
   if (tvBtnLive) tvBtnLive.className = isLive ? activeTvClass : inactiveTvClass;
   if (tvBtnVod) tvBtnVod.className = isVod ? activeTvClass : inactiveTvClass;
   if (tvBtnSeries) tvBtnSeries.className = isSeries ? activeTvClass : inactiveTvClass;
+}
+
+// =========================================================
+// FASE 2: Indicador de señal en vivo activa en el header
+// Muestra un badge "EN VIVO" cuando hay reproducción de TV en curso.
+// =========================================================
+function updateLiveSignalIndicator() {
+  const indicator = document.getElementById('live-signal-indicator');
+  if (!indicator) return;
+  const isLiveActive =
+    currentContentType === 'live' &&
+    window.playerManager &&
+    window.playerManager.currentChannel;
+  if (isLiveActive) {
+    indicator.classList.remove('hidden');
+  } else {
+    indicator.classList.add('hidden');
+  }
+}
+
+// =========================================================
+// FASE 2: Catálogo VOD / Series Profesional
+// Grid de carteles responsivo con scroll vertical.
+// =========================================================
+
+/**
+ * Renderiza el grid de películas VOD con diseño profesional
+ * (carteles tipo Netflix con botón de reproducir overlay)
+ */
+function renderVodGrid(streams) {
+  const container = document.getElementById('channels-list');
+  const tvContainer = document.getElementById('tv-channels-list');
+
+  const isTvLayout = window.innerWidth >= 760;
+  const columnas = isTvLayout ? 5 : (window.innerWidth >= 576 ? 3 : 2);
+  const gridClass = `vod-grid-container`;
+
+  const html = streams.map((vod, idx) => {
+    const poster = vod.cover || vod.logo || '';
+    const nombre = vod.name || vod.title || 'Sin título';
+    const año = vod.year || '';
+    const genero = vod.group || 'Película';
+    const streamId = vod.stream_id || idx;
+
+    return `
+      <div class="vod-poster-card" id="vod-${streamId}" tabindex="0">
+        <div class="poster-wrapper">
+          <img src="${poster}" 
+               onerror="this.onerror=null; this.src=''; this.parentElement.innerHTML='<div class=\\'poster-placeholder\\'><i class=\\'fa-solid fa-film\\'></i></div>';" 
+               alt="${nombre}">
+          <div class="poster-overlay">
+            <button class="btn-play-poster" onclick="playVodItemFromGrid('${streamId}')" title="Reproducir">
+              <i class="fa-solid fa-play"></i>
+            </button>
+          </div>
+          ${año ? `<span class="poster-year">${año}</span>` : ''}
+        </div>
+        <div class="vod-info">
+          <h4 class="vod-title">${nombre}</h4>
+          <span class="vod-genre">${genero}</span>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  if (container) {
+    container.className = gridClass;
+    container.innerHTML = html;
+    // Asignar eventos onclick a cada tarjeta
+    streams.forEach((vod, idx) => {
+      const el = document.getElementById(`vod-${vod.stream_id || idx}`);
+      if (el) {
+        el.onclick = () => openVodDetailModal(vod);
+        el.onkeydown = (e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            openVodDetailModal(vod);
+          }
+        };
+      }
+    });
+  }
+
+  if (tvContainer) {
+    tvContainer.className = gridClass;
+    tvContainer.innerHTML = html;
+    streams.forEach((vod, idx) => {
+      const el = document.getElementById(`vod-${vod.stream_id || idx}`);
+      if (el) {
+        el.onclick = () => openVodDetailModal(vod);
+        el.onkeydown = (e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            openVodDetailModal(vod);
+          }
+        };
+      }
+    });
+  }
+}
+
+/**
+ * Renderiza el grid de Series con diseño profesional
+ */
+function renderSeriesGrid(streams) {
+  const container = document.getElementById('channels-list');
+  const tvContainer = document.getElementById('tv-channels-list');
+
+  const isTvLayout = window.innerWidth >= 760;
+  const columnas = isTvLayout ? 5 : (window.innerWidth >= 576 ? 3 : 2);
+  const gridClass = `vod-grid-container`;
+
+  const html = streams.map((serie, idx) => {
+    const poster = serie.cover || serie.logo || '';
+    const nombre = serie.name || serie.title || 'Sin título';
+    const año = serie.year || '';
+    const genero = serie.group || 'Serie';
+    const seriesId = serie.series_id || idx;
+
+    return `
+      <div class="vod-poster-card" id="series-${seriesId}" tabindex="0">
+        <div class="poster-wrapper">
+          <img src="${poster}" 
+               onerror="this.onerror=null; this.src=''; this.parentElement.innerHTML='<div class=\\'poster-placeholder\\'><i class=\\'fa-solid fa-clapperboard\\'></i></div>';" 
+               alt="${nombre}">
+          <div class="poster-overlay">
+            <button class="btn-play-poster" onclick="playSerieItemFromGrid('${seriesId}')" title="Ver detalles">
+              <i class="fa-solid fa-play"></i>
+            </button>
+          </div>
+          ${año ? `<span class="poster-year">${año}</span>` : ''}
+        </div>
+        <div class="vod-info">
+          <h4 class="vod-title">${nombre}</h4>
+          <span class="vod-genre">${genero}</span>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  if (container) {
+    container.className = gridClass;
+    container.innerHTML = html;
+    streams.forEach((serie, idx) => {
+      const el = document.getElementById(`series-${serie.series_id || idx}`);
+      if (el) {
+        el.onclick = () => openSeriesDetailModal(serie);
+        el.onkeydown = (e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            openSeriesDetailModal(serie);
+          }
+        };
+      }
+    });
+  }
+
+  if (tvContainer) {
+    tvContainer.className = gridClass;
+    tvContainer.innerHTML = html;
+    streams.forEach((serie, idx) => {
+      const el = document.getElementById(`series-${serie.series_id || idx}`);
+      if (el) {
+        el.onclick = () => openSeriesDetailModal(serie);
+        el.onkeydown = (e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            openSeriesDetailModal(serie);
+          }
+        };
+      }
+    });
+  }
+}
+
+/**
+ * Abre el modal de detalle de película con diseño profesional
+ */
+function openVodDetailModal(vod) {
+  currentVodItem = vod;
+  const modal = document.getElementById('modal-vod-detail');
+  if (!modal) return;
+
+  const poster = vod.cover || vod.logo || '';
+  const nombre = vod.name || vod.title || 'Película';
+  const año = vod.year || '';
+  const duracion = vod.duration || '';
+  const rating = vod.rating || '';
+  const genero = vod.genre || vod.group || 'Película';
+  const sinopsis = vod.plot || 'Sin descripción disponible para esta película.';
+  const reparto = vod.cast || '';
+
+  // Llenar datos del modal
+  const titleEl = document.getElementById('vod-modal-title');
+  const nameEl = document.getElementById('vod-modal-name');
+  const posterEl = document.getElementById('vod-modal-poster');
+  const yearEl = document.getElementById('vod-modal-year');
+  const durationEl = document.getElementById('vod-modal-duration');
+  const ratingEl = document.getElementById('vod-modal-rating');
+  const genreEl = document.getElementById('vod-modal-genre');
+  const plotEl = document.getElementById('vod-modal-plot');
+  const castEl = document.getElementById('vod-modal-cast');
+  const castContainer = document.getElementById('vod-modal-cast-container');
+
+  if (titleEl) titleEl.innerText = `Detalle de ${nombre}`;
+  if (nameEl) nameEl.innerText = nombre;
+  if (posterEl) {
+    posterEl.src = poster;
+    posterEl.onerror = () => { posterEl.src = ''; };
+  }
+  if (yearEl) {
+    yearEl.innerText = año || 'N/A';
+    yearEl.style.display = año ? 'inline-block' : 'none';
+    yearEl.className = 'vod-modal-badge year';
+  }
+  if (durationEl) {
+    durationEl.innerText = duracion || '';
+    durationEl.style.display = duracion ? 'inline-block' : 'none';
+    durationEl.className = 'vod-modal-badge';
+  }
+  if (ratingEl) {
+    ratingEl.innerHTML = rating ? `<i class="fa-solid fa-star text-[9px] mr-1"></i>${rating}` : '';
+    ratingEl.style.display = rating ? 'inline-block' : 'none';
+    ratingEl.className = 'vod-modal-badge';
+  }
+  if (genreEl) genreEl.innerText = genero;
+  if (plotEl) plotEl.innerText = sinopsis;
+  if (castEl && castContainer) {
+    if (reparto) {
+      castContainer.style.display = 'block';
+      castEl.innerText = reparto;
+    } else {
+      castContainer.style.display = 'none';
+    }
+  }
+
+  modal.classList.add('show', 'active');
+}
+
+/**
+ * Abre el modal de detalle de serie con diseño profesional
+ */
+function openSeriesDetailModal(serie) {
+  currentSeriesItem = serie;
+  const modal = document.getElementById('modal-series-detail');
+  if (!modal) return;
+
+  const poster = serie.cover || serie.logo || '';
+  const nombre = serie.name || serie.title || 'Serie';
+  const año = serie.year || '';
+  const genero = serie.genre || serie.group || 'Serie';
+  const sinopsis = serie.plot || 'Sin descripción disponible.';
+  const seriesId = serie.series_id || 0;
+
+  // Llenar datos del modal
+  const titleEl = document.getElementById('series-modal-title');
+  const nameEl = document.getElementById('series-modal-name');
+  const posterEl = document.getElementById('series-modal-poster');
+  const yearEl = document.getElementById('series-modal-year');
+  const genreEl = document.getElementById('series-modal-genre');
+  const plotEl = document.getElementById('series-modal-plot');
+  const seasonsTabs = document.getElementById('series-seasons-tabs');
+  const episodesList = document.getElementById('series-episodes-list');
+
+  if (titleEl) titleEl.innerText = `Detalle de ${nombre}`;
+  if (nameEl) nameEl.innerText = nombre;
+  if (posterEl) {
+    posterEl.src = poster;
+    posterEl.onerror = () => { posterEl.src = ''; };
+  }
+  if (yearEl) {
+    yearEl.innerText = año || 'N/A';
+    yearEl.style.display = año ? 'inline-block' : 'none';
+  }
+  if (genreEl) genreEl.innerText = genero;
+  if (plotEl) plotEl.innerText = 'Cargando temporadas y episodios...';
+
+  if (seasonsTabs) seasonsTabs.innerHTML = `<span class="text-xs text-gray-500 py-1"><i class="fa-solid fa-spinner animate-spin mr-1.5"></i>Cargando temporadas...</span>`;
+  if (episodesList) episodesList.innerHTML = '';
+
+  modal.classList.add('show', 'active');
+
+  const acc = getActiveXtreamAccount();
+  if (!acc) {
+    if (plotEl) plotEl.innerText = "Error: no hay cuenta activa.";
+    return;
+  }
+
+  // Cargar temporadas y episodios
+  dataService.fetchSeriesInfo(acc.server, acc.username, acc.password, serie.series_id)
+    .then(seriesInfo => {
+      currentSeriesInfo = seriesInfo;
+      if (seriesInfo.info && seriesInfo.info.plot) {
+        if (plotEl) plotEl.innerText = seriesInfo.info.plot;
+      }
+      currentSeriesSeasons = seriesInfo.seasons || [];
+      renderSeriesSeasons(currentSeriesSeasons);
+    })
+    .catch(err => {
+      if (seasonsTabs) seasonsTabs.innerHTML = `<span class="text-xs text-red-400">Error al cargar episodios: ${err.message}</span>`;
+    });
+}
+
+/**
+ * Renderiza las temporadas de una serie
+ */
+function renderSeriesSeasons(seasons) {
+  const tabsContainer = document.getElementById('series-seasons-tabs');
+  if (!tabsContainer) return;
+  tabsContainer.innerHTML = '';
+
+  if (!seasons || seasons.length === 0) {
+    tabsContainer.innerHTML = `<span class="text-xs text-gray-500">No hay temporadas disponibles.</span>`;
+    return;
+  }
+
+  seasons.forEach((season, idx) => {
+    const btn = document.createElement('button');
+    const isFirst = (idx === 0);
+    btn.className = `season-tab ${isFirst ? 'active' : ''}`;
+    btn.innerText = `Temp ${season.season_num}`;
+    btn.onclick = () => selectSeriesSeason(season.season_num);
+    tabsContainer.appendChild(btn);
+  });
+
+  if (seasons.length > 0) {
+    selectSeriesSeason(seasons[0].season_num);
+  }
+}
+
+/**
+ * Selecciona una temporada y renderiza sus episodios
+ */
+function selectSeriesSeason(seasonNum) {
+  selectedSeasonNum = seasonNum;
+  const tabsContainer = document.getElementById('series-seasons-tabs');
+  if (tabsContainer) {
+    tabsContainer.querySelectorAll('button').forEach(btn => {
+      const isAct = btn.innerText === `Temp ${seasonNum}`;
+      btn.className = `season-tab ${isAct ? 'active' : ''}`;
+    });
+  }
+
+  const seasonObj = currentSeriesSeasons.find(s => String(s.season_num) === String(seasonNum));
+  renderSeriesEpisodes(seasonObj ? seasonObj.episodes : []);
+}
+
+/**
+ * Renderiza los episodios de una temporada
+ */
+function renderSeriesEpisodes(episodes) {
+  const listContainer = document.getElementById('series-episodes-list');
+  if (!listContainer) return;
+  listContainer.innerHTML = '';
+
+  if (!episodes || episodes.length === 0) {
+    listContainer.innerHTML = `<div class="vod-empty-state" style="padding:20px"><i class="fa-solid fa-clapperboard"></i><h3>Sin episodios</h3><p>No hay episodios disponibles en esta temporada.</p></div>`;
+    return;
+  }
+
+  episodes.forEach(ep => {
+    const item = document.createElement('div');
+    item.className = 'episode-item';
+    item.onclick = () => {
+      closeSeriesDetailModal();
+      openMediaInExternalPlayer(ep.url, ep.title || ep.name || 'Episodio');
+    };
+
+    const epNum = ep.episode_num || ep.episode_id || '?';
+    item.innerHTML = `
+      <div class="episode-number">${epNum}</div>
+      <div class="episode-info">
+        <div class="episode-title">${ep.title || `Episodio ${epNum}`}</div>
+        <div class="episode-meta">Temporada ${ep.season || seasonNum} • Episodio ${epNum}</div>
+      </div>
+    `;
+    listContainer.appendChild(item);
+  });
+}
+
+/**
+ * Reproduce una película desde el grid (llamada desde el botón overlay)
+ */
+function playVodItemFromGrid(streamId) {
+  if (!currentRenderedList) return;
+  const vod = currentRenderedList.find(v => String(v.stream_id || v.id) === String(streamId));
+  if (vod) {
+    closeVodDetailModal();
+    openMediaInExternalPlayer(vod.url, vod.name || vod.title || 'Película');
+  }
+}
+
+/**
+ * Abre detalles de serie desde el grid (llamada desde el botón overlay)
+ */
+function playSerieItemFromGrid(streamId) {
+  if (!currentRenderedList) return;
+  const serie = currentRenderedList.find(s => String(s.series_id || s.id) === String(streamId));
+  if (serie) {
+    closeSeriesDetailModal();
+    openSeriesDetailModal(serie);
+  }
+}
+
+// =========================================================
+// FASE 1: Retorno al menú principal desde TV en vivo
+// Detiene la señal en vivo, sale de fullscreen y vuelve al
+// menú de canales sin cerrar la aplicación.
+// =========================================================
+async function returnToMainMenu() {
+  if (window.playerManager) {
+    try {
+      await window.playerManager.stopPlayback();
+      window.playerManager.exitFullscreenMode();
+    } catch (e) {}
+  }
+  currentContentType = 'live';
+  window.currentContentType = 'live';
+  document.body.classList.remove('vod-mode');
+  updateContentTypeButtons();
+  updateLiveSignalIndicator();
+  if (typeof window.switchTab === 'function') {
+    window.switchTab('home');
+  }
+  showToast("📺 Señal detenida. Volviendo al menú principal.");
 }
 
 async function loadVodContent() {
@@ -1366,12 +1806,8 @@ async function onSelectVodCategory(catId, catName) {
     currentRenderedList = streams;
     displayedChannelCount = 0;
 
-    const container = document.getElementById('channels-list');
-    const tvContainer = document.getElementById('tv-channels-list');
-    if (container) container.innerHTML = '';
-    if (tvContainer) tvContainer.innerHTML = '';
-
-    renderNextChannelBatch();
+    // FASE 2: Renderizar grid de carteles VOD profesional
+    renderVodGrid(streams);
 
     const tvBadge = document.getElementById('tv-category-badge');
     if (tvBadge) tvBadge.innerText = `${catName} (${streams.length})`;
@@ -1424,12 +1860,8 @@ async function onSelectSeriesCategory(catId, catName) {
     currentRenderedList = streams;
     displayedChannelCount = 0;
 
-    const container = document.getElementById('channels-list');
-    const tvContainer = document.getElementById('tv-channels-list');
-    if (container) container.innerHTML = '';
-    if (tvContainer) tvContainer.innerHTML = '';
-
-    renderNextChannelBatch();
+    // FASE 2: Renderizar grid de carteles Series profesional
+    renderSeriesGrid(streams);
 
     const tvBadge = document.getElementById('tv-category-badge');
     if (tvBadge) tvBadge.innerText = `${catName} (${streams.length})`;
@@ -1757,14 +2189,15 @@ function renderSeriesEpisodes(episodes) {
   });
 }
 
-function openMediaInExternalPlayer(url, title = 'IPTV') {
+async function openMediaInExternalPlayer(url, title = 'IPTV') {
   if (!url) return;
 
   // DETENER Y DESTRUIR INMEDIATAMENTE CUALQUIER REPRODUCCION EN VIVO EN SEGUNDO PLANO
   if (window.playerManager) {
     try {
-      window.playerManager.stopPlayback();
-      window.playerManager.stop();
+      // CORRECCIÓN FASE 1: await explícito para garantizar detención completa
+      await window.playerManager.stopPlayback();
+      // Nota: se omite la llamada a stop() (método no existe en VideoPlayerManager)
       if (window.playerManager.video) {
         window.playerManager.video.pause();
         window.playerManager.video.removeAttribute('src');
@@ -2331,12 +2764,17 @@ function initTVRemoteControl() {
 // Exportar funciones globales en window para eventos inline y pruebas unitarias
 if (typeof window !== 'undefined') {
   const globalAppFns = {
-    switchTab, switchAppMode, switchContentType, openSettingsModal, closeSettingsModal,
+    switchTab, switchAppMode, switchContentType, returnToMainMenu,
+    openSettingsModal, closeSettingsModal,
     openCountrySelectorModal, closeCountrySelectorModal, importSelectedCountries,
     selectAllSelectorCountries, filterSelectorRegion, connectXtreamCodes, loadCustomM3UUrl,
     handleM3UFileSelect, quickConnectAccount, deleteAccount, confirmExitApp,
     openVodModal, closeVodDetailModal, playCurrentVod, playVodExternal,
     openSeriesModal, closeSeriesDetailModal, playSeriesEpisode, playEpisodeExternal,
+    renderVodGrid, renderSeriesGrid,
+    openVodDetailModal, openSeriesDetailModal,
+    renderSeriesSeasons, selectSeriesSeason, renderSeriesEpisodes,
+    playVodItemFromGrid, playSerieItemFromGrid,
     openMediaInExternalPlayer, focusChannelSearch, toggleSortAz
   };
   Object.assign(window, globalAppFns);
