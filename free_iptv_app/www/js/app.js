@@ -1759,6 +1759,27 @@ function renderSeriesEpisodes(episodes) {
 
 function openMediaInExternalPlayer(url, title = 'IPTV') {
   if (!url) return;
+
+  // DETENER Y DESTRUIR INMEDIATAMENTE CUALQUIER REPRODUCCION EN VIVO EN SEGUNDO PLANO
+  if (window.playerManager) {
+    try {
+      window.playerManager.stopPlayback();
+      window.playerManager.stop();
+      if (window.playerManager.video) {
+        window.playerManager.video.pause();
+        window.playerManager.video.removeAttribute('src');
+        window.playerManager.video.load();
+      }
+      if (window.playerManager.hls) {
+        window.playerManager.hls.destroy();
+        window.playerManager.hls = null;
+      }
+    } catch (e) {}
+  }
+  if (window.exoPlayerPlugin && typeof window.exoPlayerPlugin.stop === 'function') {
+    try { window.exoPlayerPlugin.stop(); } catch (e) {}
+  }
+
   // 1. Android nativo (puente JS en MainActivity)
   if (window.AndroidNativeApp && typeof window.AndroidNativeApp.openExternalPlayer === 'function') {
     window.AndroidNativeApp.openExternalPlayer(url, title);
