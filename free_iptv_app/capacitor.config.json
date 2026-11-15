@@ -2,6 +2,9 @@
   "appId": "com.freeiptv.app",
   "appName": "Free-IPTV",
   "webDir": "www",
+  "server": {
+    "androidScheme": "http"
+  },
   "plugins": {
     "CapacitorHttp": {
       "enabled": false

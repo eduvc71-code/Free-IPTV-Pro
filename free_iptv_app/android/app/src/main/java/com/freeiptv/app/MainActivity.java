@@ -16,9 +16,9 @@ public class MainActivity extends BridgeActivity {
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-        // Registrar plugin nativo ExoPlayer (Media3 + FFmpeg Audio para AC-3/E-AC-3)
+        // Registrar plugin nativo ExoPlayer antes de super.onCreate para que la pasarela de Capacitor lo inicialice correctamente
         this.registerPlugin(ExoPlayerPlugin.class);
+        super.onCreate(savedInstanceState);
         hideSystemUI();
         configureWebView();
         if (getWindow() != null && getWindow().getDecorView() != null) {

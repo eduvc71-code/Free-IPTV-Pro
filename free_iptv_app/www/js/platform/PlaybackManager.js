@@ -43,6 +43,29 @@ class PlaybackManager {
 
     console.log(`[PlaybackManager] Motor seleccionado: ${this.engine} | URL: ${url}`);
 
+    // FASE 3: Continuar viendo (Resume Playback) - Restaurar posición guardada
+    const mediaId = mediaItem.stream_id || mediaItem.id;
+    if (mediaId) {
+      const savedTime = localStorage.getItem('free_iptv_resume_' + mediaId);
+      if (savedTime && Number(savedTime) > 10) {
+        setTimeout(() => {
+          if (this.video && !isNaN(this.video.duration) && Number(savedTime) < this.video.duration - 15) {
+            this.seek(Number(savedTime));
+            console.log(`[PlaybackManager] ⏱️ Resumiendo reproducción desde el segundo ${savedTime}`);
+          }
+        }, 1500);
+      }
+
+      // Guardar posición actual cada 5 segundos
+      if (this._resumeInterval) clearInterval(this._resumeInterval);
+      this._resumeInterval = setInterval(() => {
+        const mId = this.currentMedia && (this.currentMedia.stream_id || this.currentMedia.id);
+        if (mId && this.video && this.video.currentTime > 5 && !this.video.paused) {
+          localStorage.setItem('free_iptv_resume_' + mId, Math.floor(this.video.currentTime));
+        }
+      }, 5000);
+    }
+
     // Derivación a reproductor externo (MKV, AC3 en Android WebView, etc.)
     if (this.engine === 'external_player') {
       return this.externalPlayer.open(url, mediaItem.name || 'Contenido');
@@ -145,6 +168,10 @@ class PlaybackManager {
   }
 
   stop() {
+    if (this._resumeInterval) {
+      clearInterval(this._resumeInterval);
+      this._resumeInterval = null;
+    }
     if (this.video) {
       this.video.pause();
       this.video.removeAttribute('src');

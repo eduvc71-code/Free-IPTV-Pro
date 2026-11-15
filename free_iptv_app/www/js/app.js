@@ -1414,11 +1414,27 @@ function forceLandscapeOrientation() {
  * Detiene la señal en vivo, sale de fullscreen y vuelve al menú home.
  */
 async function returnToMainMenuFromAnyScreen() {
+  if (typeof closeVodDetailModal === 'function') closeVodDetailModal();
+  if (typeof closeSeriesDetailModal === 'function') closeSeriesDetailModal();
+  if (typeof closeSettingsModal === 'function') closeSettingsModal();
+
+  if (window.exoPlayerPlugin && typeof window.exoPlayerPlugin.stop === 'function') {
+    try { await window.exoPlayerPlugin.stop(); } catch (e) {}
+  }
   if (window.playerManager) {
     try {
       await window.playerManager.stopPlayback();
       window.playerManager.exitFullscreenMode();
     } catch (e) {}
+  }
+  const playerContainer = document.getElementById('player-container');
+  if (playerContainer) {
+    playerContainer.classList.add('hidden');
+    playerContainer.style.display = 'none';
+  }
+  const videoEl = document.getElementById('main-video');
+  if (videoEl) {
+    videoEl.style.display = 'block';
   }
   currentContentType = 'live';
   window.currentContentType = 'live';
@@ -1429,7 +1445,6 @@ async function returnToMainMenuFromAnyScreen() {
     window.switchTab('home');
   }
   showToast("🏠 Menú principal");
-  forceLandscapeOrientation();
 }
 
 /**
@@ -1829,15 +1844,22 @@ function renderSeriesEpisodes(episodes) {
 }
 
 /**
- * Reproduce una película desde el grid (llamada desde el botón overlay)
+ * Reproduce una película desde el grid de manera inteligente
  */
 function playVodItemFromGrid(streamId) {
   if (!currentRenderedList) return;
   const vod = currentRenderedList.find(v => String(v.stream_id || v.id) === String(streamId));
   if (vod) {
     closeVodDetailModal();
-    openMediaInExternalPlayer(vod.url, vod.name || vod.title || 'Película');
+    playVodIntelligent(vod);
   }
+}
+
+function playVodIntelligent(vod) {
+  if (!vod || !vod.url) return;
+  closeVodDetailModal();
+  showToast("🎬 Abriendo película en reproductor externo (VLC / MX)...");
+  openMediaInExternalPlayer(vod.url, vod.name || vod.title || 'Película');
 }
 
 /**
@@ -2178,46 +2200,21 @@ function playCurrentVod() {
   const server = extraerServidor(currentVodItem.url);
   if (server && isPinEnabledForContent(server, 'vod')) {
     mostrarMensajePinRequerido(server, 'vod', () => {
-      playCurrentVodInterno(currentVodItem);
+      playVodIntelligent(currentVodItem);
     });
     return;
   }
 
-  playCurrentVodInterno(currentVodItem);
+  playVodIntelligent(currentVodItem);
 }
 
 /**
- * Reproduce película internamente después de verificar PIN
+ * Reproduce película estrictamente con reproductor externo (VLC / MX Player)
  */
 function playCurrentVodInterno(vodItem) {
   closeVodDetailModal();
-
-  // FASE 4: Mostrar el reproductor y reproducir INTERNAMENTE primero (dentro de la APK)
-  // Solo se deriva a reproductor externo (VLC/MX) como fallback si falla la interna
-  const playerContainer = document.getElementById('player-container');
-  if (playerContainer) {
-    playerContainer.classList.remove('hidden');
-    playerContainer.style.display = 'flex';
-    playerContainer.style.visibility = 'visible';
-  }
-
-  const videoEl = document.getElementById('main-video');
-  if (videoEl) {
-    videoEl.style.display = 'block';
-    videoEl.style.visibility = 'visible';
-    videoEl.style.width = '100%';
-    videoEl.style.height = '100%';
-  }
-
-  const idleEl = document.getElementById('player-idle');
-  if (idleEl) idleEl.classList.add('hidden');
-
-  // Reproducir internamente (HLS.js o HTML5 directo, con ExoPlayer como fallback)
-  playerManager.play(vodItem).catch(() => {
-    // Si falla la reproducción interna, mostrar mensaje y ofrecer reproductor externo
-    mostrarMensajeReproductorExterno(vodItem.url, vodItem.name);
-  });
-  showToast("▶️ Reproduciendo internamente...");
+  showToast("🎬 Abriendo película en reproductor externo (VLC / MX)...");
+  openMediaInExternalPlayer(vodItem.url, vodItem.name || vodItem.title || 'Película');
 }
 
 async function openSeriesModal(series) {
@@ -3413,6 +3410,17 @@ function initTVRemoteControl() {
   });
 }
 
+async function openScreenCast() {
+  if (window.exoPlayerPlugin && typeof window.exoPlayerPlugin.openCastSettings === 'function') {
+    try {
+      await window.exoPlayerPlugin.openCastSettings();
+      showToast("📺 Abriendo configuración de Duplicar Pantalla / Cast...");
+      return;
+    } catch (e) {}
+  }
+  showToast("📺 Conecta tu Smart TV por Miracast o Chromecast en los ajustes de Android.");
+}
+
 // Exportar funciones globales en window para eventos inline y pruebas unitarias
 if (typeof window !== 'undefined') {
   const globalAppFns = {
@@ -3449,7 +3457,8 @@ if (typeof window !== 'undefined') {
     verificarAccesoContenidoAdulto,
     guardarPinConfiguracion,
     cerrarModalPinConfiguracion,
-    focusChannelSearch, toggleSortAz
+    focusChannelSearch, toggleSortAz,
+    refreshActiveModeList, openListsModal, playVodIntelligent, openScreenCast
   };
   Object.assign(window, globalAppFns);
 }

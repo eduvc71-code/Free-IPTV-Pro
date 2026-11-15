@@ -1,8 +1,14 @@
 package com.freeiptv.app.plugins;
 
 import android.content.Context;
+import android.content.Intent;
+import android.graphics.Color;
 import android.net.Uri;
+import android.provider.Settings;
 import android.util.Log;
+import android.view.View;
+import android.view.ViewGroup;
+import android.widget.FrameLayout;
 
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
@@ -21,12 +27,14 @@ import androidx.media3.exoplayer.source.ProgressiveMediaSource;
 import androidx.media3.exoplayer.trackselection.DefaultTrackSelector;
 import androidx.media3.datasource.DefaultDataSource;
 import androidx.media3.datasource.DefaultHttpDataSource;
+import androidx.media3.ui.PlayerView;
 
 @CapacitorPlugin(name = "ExoPlayerPlugin")
 public class ExoPlayerPlugin extends Plugin {
 
     private static final String TAG = "ExoPlayerPlugin";
     private ExoPlayer player;
+    private PlayerView playerView;
     private Context context;
 
     @Override
@@ -63,6 +71,34 @@ public class ExoPlayerPlugin extends Plugin {
                             .setAudioAttributes(audioAttributes, true)
                             .build();
 
+                    // Crear o reutilizar PlayerView para mostrar la imagen/video
+                    if (playerView == null) {
+                        playerView = new PlayerView(getContext());
+                        playerView.setPlayer(player);
+                        playerView.setUseController(false);
+                        playerView.setBackgroundColor(Color.BLACK);
+                        // Permitir eventos táctiles para no bloquear clics en la UI
+                        playerView.setClickable(false);
+                        playerView.setFocusable(false);
+                        playerView.setFocusableInTouchMode(false);
+
+                        ViewGroup rootView = (ViewGroup) bridge.getWebView().getParent();
+                        if (rootView != null) {
+                            FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(
+                                    ViewGroup.LayoutParams.MATCH_PARENT,
+                                    ViewGroup.LayoutParams.MATCH_PARENT
+                            );
+                            rootView.addView(playerView, params);
+                            playerView.bringToFront();
+                        }
+                    } else {
+                        playerView.setPlayer(player);
+                        playerView.setVisibility(View.VISIBLE);
+                        playerView.setClickable(false);
+                        playerView.setFocusable(false);
+                        playerView.bringToFront();
+                    }
+
                     // Escuchar eventos de reproducción
                     player.addListener(new Player.Listener() {
                         @Override
@@ -79,6 +115,13 @@ public class ExoPlayerPlugin extends Plugin {
                             JSObject data = new JSObject();
                             data.put("error", error != null ? error.getMessage() : "Playback error");
                             notifyListeners("playbackError", data);
+
+                            // Ocultar PlayerView en caso de error para evitar pantalla negra permanente
+                            getActivity().runOnUiThread(() -> {
+                                if (playerView != null) {
+                                    playerView.setVisibility(View.GONE);
+                                }
+                            });
                         }
                     });
 
@@ -115,6 +158,46 @@ public class ExoPlayerPlugin extends Plugin {
                     Log.e(TAG, "Error iniciando ExoPlayer: " + ex.getMessage(), ex);
                     call.reject("Error iniciando ExoPlayer: " + ex.getMessage());
                 }
+            }
+        });
+    }
+
+    @PluginMethod()
+    public void openCastSettings(final PluginCall call) {
+        try {
+            Intent intent = new Intent(Settings.ACTION_CAST_SETTINGS);
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            getContext().startActivity(intent);
+            call.resolve();
+        } catch (Exception e) {
+            try {
+                Intent intent = new Intent("android.settings.WIRELESS_SETTINGS");
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                getContext().startActivity(intent);
+                call.resolve();
+            } catch (Exception ex) {
+                call.reject("No se pudo abrir la configuración de pantalla inalámbrica: " + ex.getMessage());
+            }
+        }
+    }
+
+    @PluginMethod()
+    public void setLayout(final PluginCall call) {
+        final int x = call.getInt("x", 0);
+        final int y = call.getInt("y", 0);
+        final int w = call.getInt("w", ViewGroup.LayoutParams.MATCH_PARENT);
+        final int h = call.getInt("h", ViewGroup.LayoutParams.MATCH_PARENT);
+
+        getActivity().runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                if (playerView != null) {
+                    FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(w, h);
+                    params.leftMargin = x;
+                    params.topMargin = y;
+                    playerView.setLayoutParams(params);
+                }
+                call.resolve();
             }
         });
     }
@@ -225,6 +308,15 @@ public class ExoPlayerPlugin extends Plugin {
     }
 
     private void releasePlayer() {
+        if (playerView != null) {
+            try {
+                ViewGroup parent = (ViewGroup) playerView.getParent();
+                if (parent != null) {
+                    parent.removeView(playerView);
+                }
+            } catch (Exception ignored) {}
+            playerView = null;
+        }
         if (player != null) {
             try {
                 player.stop();

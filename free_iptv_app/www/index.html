@@ -177,15 +177,18 @@
         </div>
 
         <!-- Center Controls -->
-        <div class="flex items-center justify-center gap-6">
-          <button onclick="playerManager.playPreviousChannel()" class="w-10 h-10 bg-black/40 hover:bg-black/60 rounded-full flex items-center justify-center text-white text-base backdrop-blur-md active:scale-90 transition border border-white/10" title="Canal anterior">
-            <i class="fa-solid fa-backward-step"></i>
+        <div class="flex items-center justify-center gap-4">
+          <button onclick="playerManager.seek(playerManager.getCurrentTime() - 10)" class="w-10 h-10 bg-black/40 hover:bg-black/60 rounded-full flex items-center justify-center text-white text-xs backdrop-blur-md active:scale-90 transition border border-white/10" title="Retroceder 10s">
+            <i class="fa-solid fa-rotate-left"></i>
           </button>
-          <button onclick="playerManager.togglePlay()" class="w-14 h-14 bg-black/55 hover:bg-black/75 rounded-full flex items-center justify-center text-white text-xl backdrop-blur-md active:scale-90 transition border border-white/20 shadow-xl">
+          <button onclick="playerManager.togglePlay()" class="w-14 h-14 bg-black/55 hover:bg-black/75 rounded-full flex items-center justify-center text-white text-xl backdrop-blur-md active:scale-90 transition border border-white/20 shadow-xl" title="Reproducir / Pausa">
             <i id="btn-play-icon" class="fa-solid fa-play ml-1"></i>
           </button>
-          <button onclick="playerManager.playNextChannel()" class="w-10 h-10 bg-black/40 hover:bg-black/60 rounded-full flex items-center justify-center text-white text-base backdrop-blur-md active:scale-90 transition border border-white/10" title="Siguiente canal">
-            <i class="fa-solid fa-forward-step"></i>
+          <button onclick="playerManager.seek(playerManager.getCurrentTime() + 10)" class="w-10 h-10 bg-black/40 hover:bg-black/60 rounded-full flex items-center justify-center text-white text-xs backdrop-blur-md active:scale-90 transition border border-white/10" title="Adelantar 10s">
+            <i class="fa-solid fa-rotate-right"></i>
+          </button>
+          <button onclick="returnToMainMenuFromAnyScreen()" class="w-10 h-10 bg-red-600/60 hover:bg-red-600 rounded-full flex items-center justify-center text-white text-xs backdrop-blur-md active:scale-90 transition border border-white/10" title="Volver al Menú">
+            <i class="fa-solid fa-power-off"></i>
           </button>
         </div>
 
