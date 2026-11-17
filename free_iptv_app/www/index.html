@@ -31,11 +31,11 @@
       </div>
     </div>
 
-    <!-- ===== CENTER: TABS con icono (Directo / Peliculas / Series) ===== -->
-    <div id="tv-content-type-bar" class="xm-tabs">
-      <button id="tv-btn-content-live" onclick="switchContentType('live')" class="xm-tab active" title="Directo (en vivo)"><i class="fa-solid fa-satellite-dish"></i></button>
-      <button id="tv-btn-content-vod" onclick="switchContentType('vod')" class="xm-tab" title="Peliculas"><i class="fa-solid fa-film"></i></button>
-      <button id="tv-btn-content-series" onclick="switchContentType('series')" class="xm-tab" title="Series"><i class="fa-solid fa-clapperboard"></i></button>
+    <!-- ===== CENTER: TABS con texto ultra compacto (TV Live / Peliculas / Series) ===== -->
+    <div id="tv-content-type-bar" class="xm-tabs flex items-center gap-1">
+      <button id="tv-btn-content-live" onclick="switchContentType('live')" class="xm-tab active text-[9px] font-bold px-1.5 py-0.5 rounded-md" title="TV en vivo">TV LIVE</button>
+      <button id="tv-btn-content-vod" onclick="switchContentType('vod')" class="xm-tab text-[9px] font-bold px-1.5 py-0.5 rounded-md" title="Películas">PELICULAS</button>
+      <button id="tv-btn-content-series" onclick="switchContentType('series')" class="xm-tab text-[9px] font-bold px-1.5 py-0.5 rounded-md" title="Series">SERIES</button>
     </div>
 
     <!-- ===== INDICADOR DE SEÑAL EN VIVO (FASE 2) ===== -->
@@ -45,7 +45,7 @@
     </div>
 
     <!-- ===== RIGHT: ACCIONES CIRCULARES ===== -->
-    <div class="xm-actions">
+    <div class="xm-actions relative">
       <button onclick="switchTab('home')" class="xm-btn" title="Inicio"><i class="fa-solid fa-house"></i></button>
       <button onclick="focusChannelSearch()" class="xm-btn" title="Buscar canal"><i class="fa-solid fa-magnifying-glass"></i></button>
       <button onclick="toggleSortAz()" class="xm-btn" title="Ordenar A-Z"><i class="fa-solid fa-arrow-down-a-z"></i></button>
@@ -54,6 +54,9 @@
       <button onclick="openListsModal()" class="xm-btn" title="Listas M3U / Xtream"><i class="fa-solid fa-link"></i></button>
       <button onclick="openSettingsModal()" class="xm-btn" title="Ajustes"><i class="fa-solid fa-gear"></i></button>
       <button onclick="confirmExitApp()" class="xm-btn danger" title="Cerrar aplicacion"><i class="fa-solid fa-power-off"></i></button>
+
+      <!-- Tooltip Helper for Android TV / Large Screen -->
+      <div id="tv-header-tooltip" class="absolute -bottom-7 right-0 text-[11px] font-semibold text-cyan-300 bg-black/90 px-2.5 py-1 rounded-lg border border-cyan-500/40 shadow-xl hidden whitespace-nowrap z-50 pointer-events-none"></div>
     </div>
   </header>
 
@@ -166,8 +169,16 @@
               <i class="fa-solid fa-lock-open text-sm"></i>
             </button>
             <!-- Minimize / Normal Screen toggle -->
+            <!-- Transmit / Cast to TV / External Player -->
+            <button onclick="openCurrentInExternalPlayer()" class="text-white hover:text-emerald-400 p-1.5 transition active:scale-95" title="Transmitir a TV / Reproductor Externo (VLC/MX)">
+              <i class="fa-solid fa-tv text-sm"></i>
+            </button>
             <button onclick="playerManager.toggleFullscreen()" class="text-white hover:text-blue-400 p-1.5" title="Minimizar / Pantalla completa">
               <i id="btn-fs-icon" class="fa-solid fa-expand text-sm"></i>
+            </button>
+            <!-- Return to Menu -->
+            <button onclick="returnToMainMenuFromAnyScreen()" class="text-blue-400 hover:text-blue-300 active:scale-125 transition p-1.5" title="Volver al Menú">
+              <i class="fa-solid fa-house text-sm"></i>
             </button>
             <!-- Exit Icon -->
             <button onclick="confirmExitApp()" class="text-red-400 hover:text-red-300 active:scale-125 transition p-1.5" title="Cerrar aplicación">
@@ -444,7 +455,12 @@
             <div class="grid grid-cols-3 gap-2.5">
               <div class="col-span-2">
                 <label class="block text-[11px] font-semibold text-gray-300 mb-1">Servidor / Host (o Link M3U)</label>
-                <input type="text" id="xtream-host" oninput="handleXtreamSmartPaste(this)" placeholder="http://mallorca.plus o pega tu link m3u aquí" class="custom-input">
+                <div class="flex gap-2">
+                  <input type="text" id="xtream-host" oninput="handleXtreamSmartPaste(this)" placeholder="http://mallorca.plus o pega tu link m3u aquí" class="custom-input flex-1">
+                  <button onclick="pasteFromClipboard('xtream-host')" class="px-3 py-2 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 transition active:scale-95 flex-shrink-0" title="Pegar del portapapeles">
+                    <i class="fa-solid fa-paste"></i> Pegar
+                  </button>
+                </div>
               </div>
               <div>
                 <label class="block text-[11px] font-semibold text-gray-300 mb-1">Puerto</label>
@@ -496,7 +512,12 @@
           <div class="bg-gray-900 border border-gray-800 rounded-2xl p-4 space-y-3 shadow-lg">
             <div>
               <label class="block text-[11px] font-semibold text-gray-300 mb-1">URL de la Lista M3U</label>
-              <input type="text" id="custom-m3u-url" placeholder="https://ejemplo.com/lista.m3u" class="custom-input">
+              <div class="flex gap-2">
+                <input type="text" id="custom-m3u-url" placeholder="https://ejemplo.com/lista.m3u" class="custom-input flex-1">
+                <button onclick="pasteFromClipboard('custom-m3u-url')" class="px-3 py-2 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 transition active:scale-95 flex-shrink-0" title="Pegar del portapapeles">
+                  <i class="fa-solid fa-paste"></i> Pegar
+                </button>
+              </div>
             </div>
             <div class="flex items-center gap-2">
               <button id="btn-load-m3u-url" onclick="loadCustomM3UUrl()" class="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs transition shadow-md shadow-emerald-600/20 active:scale-95 flex items-center justify-center gap-1.5">
@@ -884,9 +905,9 @@
           <i class="fa-solid fa-play"></i>
           <span>Reproducir Película</span>
         </button>
-        <button onclick="openCurrentInExternalPlayer()" class="btn-play-external flex items-center justify-center gap-2">
-          <i class="fa-solid fa-arrow-up-right-from-square"></i>
-          <span>Reproductor Externo</span>
+        <button onclick="openCurrentInExternalPlayer()" class="btn-play-external flex items-center justify-center gap-2" title="Transmitir a TV o abrir en VLC/MX Player">
+          <i class="fa-solid fa-tv"></i>
+          <span>Transmitir / Externo</span>
         </button>
       </div>
 
@@ -973,7 +994,63 @@
       </div>
 
       <div class="flex-1 overflow-y-auto py-3 space-y-4">
-        <!-- PIN de Contenido Adulto -->
+        <!-- Activar Modos de Aplicación -->
+        <div class="p-3 bg-gray-900 border border-gray-800 rounded-xl space-y-3">
+          <div class="flex items-center gap-2 mb-2">
+            <i class="fa-solid fa-sliders text-blue-400"></i>
+            <h4 class="text-xs font-bold text-gray-300 uppercase tracking-wider">Activar Modos</h4>
+          </div>
+          <div class="flex gap-2">
+            <button onclick="switchAppMode('A'); closeSettingsModal(); showToast('Modo A (Free) activado');" class="flex-1 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl text-xs transition active:scale-95 flex items-center justify-center gap-1.5">
+              <i class="fa-solid fa-earth-americas"></i> <span>Modo A (Free)</span>
+            </button>
+            <button onclick="switchAppMode('B'); closeSettingsModal(); showToast('Modo B (Privadas) activado');" class="flex-1 py-2.5 bg-yellow-600 hover:bg-yellow-500 text-black font-bold rounded-xl text-xs transition active:scale-95 flex items-center justify-center gap-1.5">
+              <i class="fa-solid fa-key"></i> <span>Modo B (Privadas)</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Carga de Listas por Separado (Xtream & M3U con Auto-conversión) -->
+        <div class="p-3 bg-gray-900 border border-gray-800 rounded-xl space-y-3">
+          <div class="flex items-center gap-2 mb-2">
+            <i class="fa-solid fa-cloud-arrow-down text-emerald-400"></i>
+            <h4 class="text-xs font-bold text-gray-300 uppercase tracking-wider">Carga de Listas por Separado</h4>
+          </div>
+
+          <!-- Xtream Codes -->
+          <div class="space-y-2 pb-3 border-b border-white/10">
+            <label class="block text-[11px] font-semibold text-gray-300">Conectar Cuenta Xtream Codes (o pegar link m3u)</label>
+            <div class="flex gap-2">
+              <input type="text" id="settings-xtream-host" oninput="handleXtreamSmartPaste(this)" placeholder="http://servidor.com o pega tu link m3u aquí" class="custom-input flex-1">
+              <button onclick="pasteFromClipboard('settings-xtream-host')" class="px-3 py-2 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl text-xs flex items-center gap-1 transition active:scale-95 flex-shrink-0" title="Pegar">
+                <i class="fa-solid fa-paste"></i> Pegar
+              </button>
+            </div>
+            <div class="grid grid-cols-2 gap-2">
+              <input type="text" id="settings-xtream-user" placeholder="Usuario" class="custom-input text-xs">
+              <input type="password" id="settings-xtream-pass" placeholder="Clave" class="custom-input text-xs">
+            </div>
+            <button onclick="connectSettingsXtream()" class="w-full py-2 bg-yellow-600 hover:bg-yellow-500 text-black font-bold rounded-xl text-xs transition active:scale-95 flex items-center justify-center gap-1.5">
+              <i class="fa-solid fa-bolt"></i> Conectar Xtream / Convertir
+            </button>
+          </div>
+
+          <!-- URL M3U Externa -->
+          <div class="space-y-2">
+            <label class="block text-[11px] font-semibold text-gray-300">Cargar URL M3U Externa</label>
+            <div class="flex gap-2">
+              <input type="text" id="settings-m3u-url" placeholder="https://ejemplo.com/lista.m3u" class="custom-input flex-1">
+              <button onclick="pasteFromClipboard('settings-m3u-url')" class="px-3 py-2 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl text-xs flex items-center gap-1 transition active:scale-95 flex-shrink-0" title="Pegar">
+                <i class="fa-solid fa-paste"></i> Pegar
+              </button>
+            </div>
+            <button onclick="loadSettingsM3U()" class="w-full py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs transition active:scale-95 flex items-center justify-center gap-1.5">
+              <i class="fa-solid fa-cloud-arrow-down"></i> Cargar Lista M3U
+            </button>
+          </div>
+        </div>
+
+        <!-- PIN de Contenido Adulto (Control Parental) -->
         <div class="p-3 bg-gray-900 border border-gray-800 rounded-xl space-y-3">
           <div class="flex items-center gap-2 mb-2">
             <i class="fa-solid fa-lock text-red-400"></i>

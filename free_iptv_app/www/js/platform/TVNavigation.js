@@ -193,6 +193,14 @@ class TVNavigation {
       return;
     }
 
+    // Si hay reproducción activa, volver al menú principal al pulsar Back en el control remoto
+    if (window.playerManager && window.playerManager.currentChannel) {
+      if (typeof window.returnToMainMenuFromAnyScreen === 'function') {
+        window.returnToMainMenuFromAnyScreen();
+        return;
+      }
+    }
+
     // Comportamiento predeterminado según estado de la app
     const playerContainer = document.getElementById('player-container');
     const isFullscreen = playerContainer && playerContainer.classList.contains('fullscreen-player');

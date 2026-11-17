@@ -340,6 +340,19 @@ class VideoPlayerManager {
     //   0 = OFF (solo hardware) | 1 = ON (hardware + FFmpeg de reserva) | 2 = PREFER (FFmpeg primero)
     const extensionMode = this.getExtensionRendererMode();
 
+    // =========================================================
+    // SOLUCIÓN DEFINITIVA ANDROID TV / PANTALLAS GRANDES:
+    // En dispositivos Android TV o pantallas >= 760px, usar siempre
+    // ExoPlayer Nativo (Media3) para garantizar reproducción perfecta en TV 9 y 14,
+    // dejando intacto el funcionamiento en celulares.
+    // =========================================================
+    const isTVDevice = (window.tvNavigation && window.tvNavigation.isTVMode) || window.innerWidth >= 760;
+    if (isTVDevice && exoAvailable && !forceWeb) {
+      console.log('[IPTV] Android TV / Pantalla Grande detectado: Usando ExoPlayer Nativo directo.');
+      const started = await this.playWithExo(streamUrl, channel, token, extensionMode);
+      if (started) return;
+    }
+
     // Contenedores/codecs que el WebView NO puede reproducir nativamente
     const hardFormat = isTS || /\.(mkv|avi|wmv|flv|m4v|mov)(?:$|[?#])/i.test(streamUrl);
 

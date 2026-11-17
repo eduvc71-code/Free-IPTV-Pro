@@ -1,42 +1,81 @@
-name: Check IPTV
+name: Guard de seguridad del repo
+
+# El verificador de listas (iptv_checker/) es una HERRAMIENTA LOCAL:
+# se ejecuta desde iniciar_menu.bat en el PC del autor y NO se versiona
+# en este repositorio (ademas maneja credenciales de cuentas privadas).
+#
+# Este workflow ya no genera listas. En su lugar protege el repositorio:
+#   1. Que no se cuele ningun volcado de credenciales.
+#   2. Que la herramienta local siga fuera del repositorio.
+#   3. Que no se publiquen ficheros .py sueltos en la app (la APK no debe
+#      incluir la herramienta interna).
 
 on:
   schedule:
-    - cron: '0 0 * * *' # Запуск каждый день в полночь
+    - cron: '0 6 * * *'
   workflow_dispatch:
 
 jobs:
-  check:
+  guard:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
 
     steps:
     - name: Checkout repository
-      uses: actions/checkout@v2
+      uses: actions/checkout@v4
 
-    - name: Set up Python
-      uses: actions/setup-python@v2
-      with:
-        python-version: '3.11'
-
-    - name: Install dependencies
+    - name: Comprobar que no hay volcados de credenciales
+      shell: bash
       run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt
+        echo "::group::Buscando ficheros sensibles en el arbol de trabajo"
+        FOUND=0
+        for f in ULTIMA.txt Nueva_Lista.txt Listas_IPTV.txt LISTA_NUEVA.txt \
+                 Lista1.txt Lista2.txt servidores_xtream.txt \
+                 servidores_xtream_activos.txt cuentas_activas_m3u.txt; do
+          if [ -e "$f" ]; then
+            echo "::error file=$f::Fichero sensible presente en el repositorio"
+            FOUND=1
+          fi
+        done
+        echo "::endgroup::"
+        if [ "$FOUND" -ne 0 ]; then
+          echo "::error::Se han encontrado ficheros con credenciales. NO subirlos."
+          exit 1
+        fi
+        echo "OK: sin volcados de credenciales"
 
-    - name: Run IPTV checker
-      run: python -m iptv_checker
-
-    - name: Configure git
+    - name: Comprobar que la herramienta local no esta versionada
+      shell: bash
       run: |
-        git config --global user.name 'github-actions[bot]'
-        git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+        echo "::group::Comprobando iptv_checker/"
+        if git ls-files --error-unmatch iptv_checker >/dev/null 2>&1; then
+          echo "::error::La herramienta interna iptv_checker/ esta versionada. Debe quedar solo en local."
+          exit 1
+        fi
+        echo "::endgroup::"
+        echo "OK: iptv_checker/ no esta versionado (uso local)"
 
-    - name: Commit changes
+    - name: Comprobar que la APK no incluye la herramienta interna
+      shell: bash
       run: |
-        git add output/*
-        git commit -m "Update available channels"
+        echo "::group::Buscando .py dentro del proyecto Android"
+        if [ -n "$(find free_iptv_app/android -name '*.py' -not -path '*/build/*' 2>/dev/null)" ]; then
+          echo "::error::Hay ficheros .py dentro del proyecto Android."
+          exit 1
+        fi
+        echo "::endgroup::"
+        echo "OK: la app Android no contiene ficheros .py"
 
-    - name: Push changes
-      uses: ad-m/github-push-action@v0.6.0
-      with:
-        github_token: ${{ secrets.GITHUB_TOKEN }}
+    - name: Comprobar la sintaxis del codigo web
+      shell: bash
+      run: |
+        echo "::group::Comprobando sintaxis JavaScript"
+        for f in free_iptv_app/www/js/*.js free_iptv_app/www/js/platform/*.js; do
+          [ -f "$f" ] || continue
+          if command -v node >/dev/null 2>&1; then
+            node --check "$f" || { echo "::error file=$f::Error de sintaxis"; exit 1; }
+          fi
+        done
+        echo "::endgroup::"
+        echo "OK: sintaxis correcta"

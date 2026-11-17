@@ -594,7 +594,11 @@ class IPTVDataService {
   // Saved Xtream Accounts
   getSavedAccounts() {
     try {
-      return JSON.parse(localStorage.getItem(this.savedAccountsKey)) || [];
+      const raw = JSON.parse(localStorage.getItem(this.savedAccountsKey)) || [];
+      return raw.map(acc => ({
+        ...acc,
+        password: acc.password ? (acc.password.startsWith('enc_') ? atob(acc.password.substring(4)) : acc.password) : ''
+      }));
     } catch {
       return [];
     }
@@ -616,10 +620,11 @@ class IPTVDataService {
   saveAccount(server, username, password, format = 'ts') {
     let accounts = this.getSavedAccounts();
     accounts = accounts.filter(a => !(a.server === server && a.username === username));
+    const encodedPass = 'enc_' + btoa(password);
     accounts.unshift({
       server,
       username,
-      password,
+      password: encodedPass,
       format: format || 'ts',
       savedAt: new Date().toISOString()
     });

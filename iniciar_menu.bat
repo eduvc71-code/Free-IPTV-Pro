@@ -1,10 +1,14 @@
 @echo off
-title World IPTV Checker - Edicion America y Xtream Codes
+setlocal
+cd /d "%~dp0"
 chcp 65001 > nul
-cls
+title World IPTV Checker - Uso local
 python main.py
 if errorlevel 1 (
     echo.
-    echo Ocurrio un error al ejecutar Python. Verifica que Python este instalado en tu sistema.
+    echo [!] Error al ejecutar Python. Verifica que Python este instalado y en el PATH.
     pause
+    exit /b 1
 )
+pause
+endlocal

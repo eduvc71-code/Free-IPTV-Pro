@@ -3,8 +3,37 @@
    Identidad visual propia: plataforma de streaming inmersiva
    ========================================================= */
 
-/* ---------- Tipografía ---------- */
+/* ---------- Tipografía y Font Awesome Fix ---------- */
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+@font-face {
+  font-family: 'Font Awesome 7 Free';
+  font-style: normal;
+  font-weight: 900;
+  src: url('http://localhost/webfonts/fa-solid-900.woff2') format('woff2'),
+       url('../webfonts/fa-solid-900.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Font Awesome 7 Free';
+  font-style: normal;
+  font-weight: 400;
+  src: url('http://localhost/webfonts/fa-regular-400.woff2') format('woff2'),
+       url('../webfonts/fa-regular-400.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Font Awesome 7 Brands';
+  font-style: normal;
+  font-weight: 400;
+  src: url('http://localhost/webfonts/fa-brands-400.woff2') format('woff2'),
+       url('../webfonts/fa-brands-400.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'FontAwesome';
+  font-style: normal;
+  font-weight: 900;
+  src: url('http://localhost/webfonts/fa-solid-900.woff2') format('woff2'),
+       url('../webfonts/fa-solid-900.woff2') format('woff2');
+}
 
 :root {
   /* Colores base - Azul Neon */
@@ -2587,7 +2616,69 @@ button:focus {
     padding: 12px !important;
     font-size: 13px !important;
   }
-  
+}
+
+/* =========================================================
+   FALLBACKS EXPLÍCITOS FONT AWESOME (Evita iconos rotos en WebView/TV)
+   ========================================================= */
+.fa-play::before { content: "\f04b" !important; }
+.fa-pause::before { content: "\f04c" !important; }
+.fa-tv::before { content: "\f26c" !important; }
+.fa-house::before { content: "\f015" !important; }
+.fa-gear::before { content: "\f013" !important; }
+.fa-star::before { content: "\f005" !important; }
+.fa-regular.fa-star::before { content: "\f005" !important; }
+.fa-magnifying-glass::before { content: "\f002" !important; }
+.fa-rotate-right::before { content: "\f2f9" !important; }
+.fa-rotate-left::before { content: "\f2ea" !important; }
+.fa-cloud-arrow-down::before { content: "\f0ed" !important; }
+.fa-folder-open::before { content: "\f07c" !important; }
+.fa-list-check::before { content: "\f0ae" !important; }
+.fa-arrow-up-right-from-square::before { content: "\f08e" !important; }
+.fa-xmark::before { content: "\f00d" !important; }
+.fa-expand::before { content: "\f065" !important; }
+.fa-compress::before { content: "\f066" !important; }
+.fa-lock::before { content: "\f023" !important; }
+.fa-lock-open::before { content: "\f09c" !important; }
+.fa-moon::before { content: "\f186" !important; }
+.fa-closed-captioning::before { content: "\f20a" !important; }
+.fa-up-right-and-down-left-from-center::before { content: "\f424" !important; }
+.fa-clone::before { content: "\f24d" !important; }
+.fa-power-off::before { content: "\f015" !important; }
+.fa-film::before { content: "\f008" !important; }
+.fa-clapperboard::before { content: "\f64e" !important; }
+.fa-earth-americas::before { content: "\f57d" !important; }
+.fa-key::before { content: "\f084" !important; }
+.fa-circle-xmark::before { content: "\f057" !important; }
+.fa-chevron-right::before { content: "\f054" !important; }
+.fa-bolt::before { content: "\f0e7" !important; }
+.fa-address-book::before { content: "\f2b9" !important; }
+.fa-shield-halved::before { content: "\f3ed" !important; }
+.fa-circle-info::before { content: "\f059" !important; }
+.fa-scale-balanced::before { content: "\f515" !important; }
+.fa-circle-check::before { content: "\f058" !important; }
+.fa-terminal::before { content: "\f120" !important; }
+.fa-copy::before { content: "\f0c5" !important; }
+.fa-trash::before { content: "\f1f8" !important; }
+.fa-trash-can::before { content: "\f2ed" !important; }
+.fa-volume-high::before { content: "\f028" !important; }
+.fa-calendar-day::before { content: "\f783" !important; }
+.fa-spinner::before { content: "\f110" !important; }
+
+/* Scroll preciso en pantallas grandes y TV */
+html, body {
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+}
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 243, 255, 0.5);
+  border-radius: 3px;
+}
+
   /* Ajustar botón de retorno al menú */
   .btn-return-to-menu {
     width: 100% !important;

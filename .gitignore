@@ -47,11 +47,39 @@ venv/
 # Large temporary playlist caches and logs
 *.log
 test_playlist.m3u
-output/
 
-# Private playlists and credentials
-Lista1.txt
-Lista2.txt
-servidores_xtream.txt
-*.txt.bak
+# Salida del verificador (generada) - 100% LOCAL, NUNCA se versiona.
+# OJO: output/index.m3u y output/status/ pueden contener URLs de listas
+# privadas con usuario/contraseña incrustados en la ruta (/live/user/pass/id).
+# Las listas PUBLICAS para la app viven en free_iptv_app/www/data/playlists/
+# (esas si se versionan, y no llevan credenciales).
+/output/
 
+# Local Testing Tools (IPTV Checker) - NEVER upload to repo
+iptv_checker/
+
+# Private playlists, credentials, and text dumps
+#
+# REGLA IMPORTANTE: los patrones van ANCLADOS a la raiz ("/") y nunca usan
+# comodines que puedan casar con el nombre de un DIRECTORIO. Un patron como
+# "/*iptv*" ignoraba todo el codigo de la app, porque "free_iptv_app" contiene
+# "iptv" y excluir un directorio excluye todo su contenido.
+#
+# Solo afecta a ficheros de la raiz: "*" no cruza "/".
+/*.txt
+!requirements.txt
+/*.m3u
+/*.m3u8
+
+# Volcados de credenciales conocidos (nombres exactos)
+/ULTIMA.txt
+/Nueva_Lista.txt
+/Listas_IPTV.txt
+/LISTA_NUEVA.txt
+/Lista1.txt
+/Lista2.txt
+/servidores_xtream.txt
+/servidores_xtream_activos.txt
+/servidores_xtream_activos_1.txt
+/cuentas_activas_m3u.txt
+/cuentas_activas_m3u_1.txt

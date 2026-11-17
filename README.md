@@ -1,5 +1,37 @@
 # 🌍 World IPTV Checker — Free Live TV Channels, Updated Daily
 
+> ## ⚙️ Herramienta interna de verificación (solo local)
+>
+> La carpeta **`iptv_checker/`** es una **herramienta de uso interno**:
+> **no forma parte de la app Android (APK)**, **no se versiona en este
+> repositorio** (lo bloquea `.gitignore` y un guard de CI) y **no se ejecuta
+> dentro de la app**. La APK valida los streams por su cuenta, en el
+> dispositivo, mediante `www/js/xtream.js`.
+>
+> **Cómo usarla (en tu PC):**
+> 1. Ejecuta `iniciar_menu.bat` → `python main.py`
+> 2. Opción **2** (Xtream) → opción **3** (archivo `.txt` de cuentas)
+> 3. Escribe el nombre de tu fichero, p. ej. `XLISTASSSSD.TXT`
+> 4. Elige el formato (`1` = HLS `.m3u8`, recomendado para la app; `2` = `.ts`)
+>
+> **Qué genera en `output/`:**
+>
+> | Fichero | Contenido |
+> |---|---|
+> | `<host>_<usuario>.m3u` | La lista **real** de esa cuenta con **solo los canales verificados** |
+> | `status/<host>_<usuario>.json` | Informe de vigencia (% vivo, latencias, motivos de muerte) |
+> | `servidores_xtream_activos.txt` | Estado, inicio, vencimiento y conexiones de cada cuenta |
+> | `cuentas_activas_m3u.txt` | URLs M3U de las cuentas vivas |
+> | `index.m3u` | Índice global de todo lo verificado |
+>
+> **Criterio de veracidad:** un canal se considera vivo **solo si el host
+> responde y entrega el formato que promete** (byte de sincronización `0x47`
+> en MPEG-TS, `#EXTM3U` + segmento real descargado en HLS, box `ftyp` en MP4).
+> Un HTTP 200 con HTML, JSON o texto **no** cuenta como canal vivo.
+> La descarga de las listas se hace con **verificación TLS estricta**.
+
+---
+
 <p align="center">
   <strong>Automatically verified IPTV playlist with working channels only</strong>
 </p>

@@ -4,13 +4,30 @@ import sys
 import subprocess
 import re
 
-from iptv_checker.checker import IPTVChecker
-from iptv_checker.utils import read_playlist_urls, create_index_m3u
-from iptv_checker.xtream_tester import check_xtream_file, format_output_block, format_m3u_line
+# ============================================================
+# iptv_checker es una HERRAMIENTA LOCAL (no se versiona en el repo
+# ni forma parte de la APK). Si no esta presente, el menu sigue
+# funcionando para el resto de opciones.
+# ============================================================
+try:
+    from iptv_checker.checker import IPTVChecker
+    from iptv_checker.utils import read_playlist_urls, create_index_m3u
+    from iptv_checker.xtream_tester import (
+        check_xtream_file, format_output_block, format_m3u_line, build_m3u_url,
+    )
+    from iptv_checker.verifier import build_ssl_context
+    CHECKER_AVAILABLE = True
+except ImportError as _e:
+    CHECKER_AVAILABLE = False
+    _CHECKER_ERROR = _e
 
 # Configuración por defecto
 DEFAULT_CONCURRENCY = 150
 DEFAULT_TIMEOUT = 8
+# Concurrencia de la verificación de canales de cuentas privadas:
+# cada canal implica 1-2 peticiones, asi que vamos mas conservative
+# para no provocar cortes (rate limit) en los paneles.
+PRIVATE_CONCURRENCY = 60
 
 # Colores de consola (ANSI)
 CYAN = "\033[96m"
@@ -38,6 +55,65 @@ def pause():
     input(f"\n{YELLOW}Presiona ENTER para volver al menú principal...{RESET}")
 
 
+def _base_dir():
+    """Carpeta raiz del proyecto (donde vive main.py)."""
+    return os.path.dirname(os.path.abspath(__file__))
+
+
+def resolve_input_file(typed):
+    """
+    Resuelve el fichero que el usuario escribe.
+
+    Acepta:
+      - ruta absoluta o relativa al directorio actual
+      - solo el nombre del fichero (ej. 'XLISTASSSSD.TXT') -> se busca en la raiz
+      - sin extension -> se prueba con .txt
+      - mayusculas/minusculas distintas -> se busca sin distinguir mayusculas
+    Devuelve la ruta existente o None.
+    """
+    if not typed:
+        return None
+    typed = typed.strip().strip('"').strip("'")
+    if not typed:
+        return None
+
+    base = _base_dir()
+    candidatos = [typed]
+
+    # Si es solo un nombre, probar en la raiz del proyecto
+    if not os.path.isabs(typed) and os.sep not in typed and "/" not in typed:
+        candidatos.append(os.path.join(base, typed))
+        if not typed.lower().endswith(".txt"):
+            candidatos.append(os.path.join(base, typed + ".txt"))
+            candidatos.append(os.path.join(base, typed + ".TXT"))
+
+    for c in candidatos:
+        if os.path.isfile(c):
+            return os.path.abspath(c)
+
+    # Ultimo recurso: buscar por nombre ignorando mayusculas en la raiz
+    if not os.path.isabs(typed) and os.sep not in typed:
+        try:
+            objetivo = os.path.basename(typed).lower()
+            for nombre in os.listdir(base):
+                if nombre.lower() == objetivo:
+                    return os.path.join(base, nombre)
+            # prefijo: 'XLISTASSSSD' -> 'XLISTASSSSD.TXT'
+            for nombre in os.listdir(base):
+                if nombre.lower().startswith(objetivo):
+                    return os.path.join(base, nombre)
+        except OSError:
+            pass
+    return None
+
+
+def _aviso_sin_checker():
+    print(f"{RED}[!] La herramienta 'iptv_checker' no esta disponible en esta carpeta.{RESET}")
+    print(f"    {str(_CHECKER_ERROR)}")
+    print(f"    Es una herramienta LOCAL: debe estar en '{_base_dir()}\\iptv_checker'.")
+    pause()
+
+
 async def run_single_checker(name, url, concurrency=DEFAULT_CONCURRENCY):
     semaphore = asyncio.Semaphore(concurrency)
     checker = IPTVChecker(name, url, semaphore)
@@ -61,6 +137,9 @@ async def run_multiple_checkers(playlist_dict, concurrency=DEFAULT_CONCURRENCY):
 
 
 def menu_americas():
+    if not CHECKER_AVAILABLE:
+        _aviso_sin_checker()
+        return
     print_banner()
     americas_file = os.path.join(os.path.dirname(__file__), 'playlists.txt')
     if not os.path.exists(americas_file):
@@ -99,12 +178,15 @@ def menu_americas():
 
 
 def menu_xtream():
+    if not CHECKER_AVAILABLE:
+        _aviso_sin_checker()
+        return
     print_banner()
     print(f"{BOLD}--- SOPORTE Y TESTER PARA XTREAM CODES / PANELES IPTV ---{RESET}\n")
     print("1. Pegar URL completa de Xtream Codes (Verificar canales)")
     print("2. Asistente manual (Servidor, Usuario y Contraseña)")
-    print(f"{GREEN}3. 📋 TESTEAR ARCHIVO .TXT CON MÚLTIPLES URLs/SERVIDORES XTREAM{RESET}")
-    print("   (Verifica estado, fecha inicio, vencimiento y filtra solo activos)")
+    print(f"{GREEN}3. 📋 PROCESAR ARCHIVO .TXT DE CUENTAS XTREAM{RESET}")
+    print(f"   {GREEN}-> Valida las cuentas y genera en output/ las listas REALES y VERIFICADAS{RESET}")
     print("0. Volver\n")
 
     sub_choice = input(f"{BOLD}Elige una opción: {RESET}").strip()
@@ -149,58 +231,152 @@ def menu_xtream():
 
 
 def test_xtream_txt_menu():
+    """
+    Procesa un fichero .txt con cuentas Xtream y genera en 'output/' los
+    ficheros REALES y VERIFICADOS de cada lista privada:
+
+      output/<host>_<usuario>.m3u   -> solo los canales que responden de verdad
+      output/status/<host>_<usuario>.json -> informe de vigencia
+      output/servidores_xtream_activos.txt -> estado de cada cuenta
+      output/cuentas_activas_m3u.txt      -> URLs M3U de las cuentas vivas
+      output/index.m3u            -> indice global de todo lo verificado
+    """
+    if not CHECKER_AVAILABLE:
+        _aviso_sin_checker()
+        return
     print_banner()
-    print(f"{BOLD}--- VALIDADOR DE SERVIDORES Y CUENTAS XTREAM (.TXT) ---{RESET}\n")
-    print("Ingresa la ruta de tu archivo .txt (o arrástralo a esta ventana):")
-    print("(Si dejas en blanco, buscará 'servidores_xtream.txt' en esta carpeta)\n")
+    print(f"{BOLD}--- VALIDAR CUENTAS XTREAM Y GENERAR LISTAS VERIFICADAS ---{RESET}\n")
+    print("Escribe el nombre de tu archivo .txt con las cuentas (ej. XLISTASSSSD.TXT)")
+    print("o arrastra el archivo a esta ventana. Si dejas en blanco se usa")
+    print("'servidores_xtream.txt' de esta carpeta.\n")
 
-    filepath = input(f"{CYAN}> {RESET}").strip().strip('"').strip("'")
+    typed = input(f"{CYAN}> {RESET}").strip()
+    if not typed:
+        typed = os.path.join(_base_dir(), 'servidores_xtream.txt')
+
+    filepath = resolve_input_file(typed)
     if not filepath:
-        filepath = os.path.join(os.path.dirname(__file__), 'servidores_xtream.txt')
-
-    if not os.path.exists(filepath):
-        print(f"\n{RED}[!] Archivo no encontrado: {filepath}{RESET}")
-        print("Crea un archivo de texto con las URLs de Xtream Codes y vuelve a intentarlo.")
+        print(f"\n{RED}[!] No se encontró el archivo: {typed}{RESET}")
+        print(f"    Busqué en el directorio actual y en: {_base_dir()}")
         pause()
         return
 
+    print(f"{GREEN}[✓] Archivo: {filepath}{RESET}\n")
+
+    # Formato de salida de las listas
+    print(f"{YELLOW}Formato de las listas a generar:{RESET}")
+    print(f"  {BOLD}1{RESET}. HLS (.m3u8)  {GREEN}- recomendado para la app Android/TV{RESET}")
+    print(f"  {BOLD}2{RESET}. MPEG-TS (.ts) - para reproductores que aceptan TS directo\n")
+    fmt_choice = input(f"{BOLD}Elige (1 o 2, por defecto 1): {RESET}").strip()
+    output_format = "ts" if fmt_choice == "2" else "m3u8"
+
+    print(f"\n{CYAN}[*] Validando las cuentas del panel...{RESET}")
     active_servers = asyncio.run(check_xtream_file(filepath))
 
     print(f"\n{BOLD}{'=' * 65}{RESET}")
-    print(f"{GREEN}{BOLD}RESULTADOS: SERVIDORES ACTIVOS Y VÁLIDOS ({len(active_servers)}){RESET}")
+    print(f"{GREEN}{BOLD}CUENTAS ACTIVAS Y VÁLIDAS: {len(active_servers)}{RESET}")
     print(f"{BOLD}{'=' * 65}{RESET}\n")
 
     if not active_servers:
-        print(f"{RED}[!] No se encontraron servidores activos o válidos en el archivo.{RESET}")
+        print(f"{RED}[!] No se encontraron cuentas activas o válidas en el archivo.{RESET}")
+        print("    (Ninguna cuenta devolvió 'auth=1' y estado 'active' en su panel)")
         pause()
         return
 
-    output_dir = os.path.join(os.path.dirname(__file__), 'output')
+    for s in active_servers:
+        print(format_output_block(s))
+
+    output_dir = os.path.join(_base_dir(), 'output')
     os.makedirs(output_dir, exist_ok=True)
     report_path = os.path.join(output_dir, 'servidores_xtream_activos.txt')
     m3u_list_path = os.path.join(output_dir, 'cuentas_activas_m3u.txt')
 
     report_lines = []
     m3u_urls = []
-
     for s in active_servers:
-        block = format_output_block(s)
-        print(block)
-        report_lines.append(block)
+        report_lines.append(format_output_block(s))
         m3u_urls.append(format_m3u_line(s))
 
     with open(report_path, 'w', encoding='utf-8') as f:
         f.write("\n".join(report_lines) + "\n")
-
     with open(m3u_list_path, 'w', encoding='utf-8') as f:
         f.write("\n".join(m3u_urls) + "\n")
 
-    print(f"\n{GREEN}[✓] Informe detallado guardado en: {report_path}{RESET}")
-    print(f"{GREEN}[✓] URLs M3U activas guardadas en: {m3u_list_path}{RESET}")
+    print(f"\n{GREEN}[✓] Estado de cuentas: {report_path}{RESET}")
+    print(f"{GREEN}[✓] URLs M3U de cuentas vivas: {m3u_list_path}{RESET}")
+
+    # ---- Generar las playlists REALES y VERIFICADAS de cada cuenta ----
+    print(f"\n{BOLD}{'=' * 65}{RESET}")
+    print(f"{CYAN}{BOLD}GENERANDO LISTAS VERIFICADAS DE CADA CUENTA ({output_format}){RESET}")
+    print(f"{BOLD}{'=' * 65}{RESET}\n")
+
+    print(f"{YELLOW}Se descargará la lista y se verificará CADA canal (1-2 peticiones por canal).{RESET}")
+    print(f"{YELLOW}Con {len(active_servers)} cuenta(s) puede tardar varios minutos.{RESET}")
+    if len(active_servers) > 1:
+        seguir = input(f"{BOLD}¿Continuar con las {len(active_servers)} cuentas? (s/n): {RESET}").strip().lower()
+        if seguir not in ('s', 'si', 'sí', 'y', 'yes', ''):
+            print(f"{YELLOW}[i] Saltando la generación de listas.{RESET}")
+            pause()
+            return
+
+    asyncio.run(generar_listas_verificadas(active_servers, output_format))
+
+    # Indice global
+    try:
+        create_index_m3u()
+    except Exception as e:
+        print(f"{YELLOW}[!] No se pudo actualizar el índice: {e}{RESET}")
+
+    print(f"\n{GREEN}{BOLD}[✓] LISTAS VERIFICADAS GENERADAS EN:{RESET}")
+    print(f"{GREEN}    {output_dir}{RESET}")
+    print(f"{YELLOW}    Cada cuenta viva tiene su .m3u con SOLO los canales que responden,")
+    print(f"{YELLOW}    y su informe de vigencia en output/status/.{RESET}")
     pause()
 
 
+async def generar_listas_verificadas(active_servers, output_format):
+    """
+    Para cada cuenta viva descarga su M3U real y verifica canal a canal.
+    Escribe output/<host>_<usuario>.m3u y output/status/<host>_<usuario>.json
+    """
+    import aiohttp
+    from iptv_checker.utils import DEFAULT_HEADERS
+
+    semaphore = asyncio.Semaphore(PRIVATE_CONCURRENCY)
+    connector = aiohttp.TCPConnector(ssl=build_ssl_context(insecure=False),
+                                     limit=PRIVATE_CONCURRENCY + 10)
+    session = aiohttp.ClientSession(
+        headers=DEFAULT_HEADERS,
+        connector=connector,
+        timeout=aiohttp.ClientTimeout(total=30),
+    )
+
+    try:
+        for s in active_servers:
+            m3u_url = build_m3u_url(s['base_url'], s['username'], s['password'], output_format)
+            nombre = f"{s['server_host']}_{s['username']}"
+            print(f"{CYAN}[*] Verificando '{nombre}'...{RESET}")
+            checker = IPTVChecker(nombre, m3u_url, semaphore, session=session,
+                                  insecure=False, timeout=12.0)
+            try:
+                await checker.run()
+                pct = checker.stats.get("vivos", 0)
+                tot = checker.stats.get("total", 0)
+                if tot:
+                    print(f"{GREEN}[✓] {nombre}: {pct}/{tot} canales reales verificados "
+                          f"({100.0 * pct / tot:.1f}%){RESET}")
+                else:
+                    print(f"{YELLOW}[!] {nombre}: la lista no devolvió canales{RESET}")
+            except Exception as e:
+                print(f"{RED}[!] {nombre}: error al verificar -> {e}{RESET}")
+    finally:
+        await session.close()
+
+
 def menu_custom_url():
+    if not CHECKER_AVAILABLE:
+        _aviso_sin_checker()
+        return
     print_banner()
     print(f"{BOLD}--- VERIFICAR URL M3U EXTERNA ---{RESET}\n")
     url = input(f"{CYAN}Pega la URL pública o privada de la lista (.m3u / .m3u8):{RESET}\n> ").strip()
@@ -218,6 +394,9 @@ def menu_custom_url():
 
 
 def menu_local_file():
+    if not CHECKER_AVAILABLE:
+        _aviso_sin_checker()
+        return
     print_banner()
     print(f"{BOLD}--- VERIFICAR ARCHIVO M3U LOCAL ---{RESET}\n")
     print("Puedes arrastrar y soltar el archivo .m3u directamente aquí, o escribir su ruta:")
@@ -242,9 +421,9 @@ def open_output_folder():
     if sys.platform == 'win32':
         os.startfile(output_dir)
     elif sys.platform == 'darwin':
-        subprocess.run(['open', output_dir])
+        subprocess.run(['open', output_dir], check=True)
     else:
-        subprocess.run(['xdg-open', output_dir])
+        subprocess.run(['xdg-open', output_dir], check=True)
     print(f"\n{GREEN}[✓] Carpeta abierta: {output_dir}{RESET}")
     pause()
 
@@ -254,7 +433,7 @@ def build_android_apk():
     print(f"{BOLD}--- COMPILACIÓN Y GENERACIÓN DE APK ANDROID (FREE-IPTV PRO) ---{RESET}\n")
     bat_path = os.path.join(os.path.dirname(__file__), 'compilar_apk.bat')
     if os.path.exists(bat_path):
-        subprocess.run([bat_path], shell=True)
+        subprocess.run([bat_path], shell=True, check=True)
     else:
         print(f"{RED}[!] No se encontró el archivo compilar_apk.bat{RESET}")
         pause()
@@ -264,11 +443,11 @@ def run_local_web_server():
     print_banner()
     print(f"{BOLD}--- INICIANDO SERVIDOR WEB / REPRODUCTOR LOCAL ---{RESET}\n")
     server_script = os.path.join(os.path.dirname(__file__), 'app', 'server.py')
-    print(f"{CYAN}Abriendo reproductor en tu navegador web (http://localhost:8080)...{RESET}")
+    print(f"{CYAN}Abriendo reproductor en tu navegador web (http://localhost:5050)...{RESET}")
     if sys.platform == 'win32':
         import webbrowser
-        webbrowser.open('http://localhost:8080')
-    subprocess.run([sys.executable, server_script])
+        webbrowser.open('http://localhost:5050')
+    subprocess.run([sys.executable, server_script], check=True)
 
 
 def main():

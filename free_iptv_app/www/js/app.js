@@ -59,6 +59,34 @@ document.addEventListener('DOMContentLoaded', async () => {
   initTVRemoteControl();
   initVirtualScrollListeners();
 
+  // Tooltips para botones de acción en TV / Pantallas grandes
+  document.querySelectorAll('.xm-btn').forEach(btn => {
+    btn.addEventListener('mouseenter', () => {
+      const tooltip = document.getElementById('tv-header-tooltip');
+      const title = btn.getAttribute('title');
+      if (tooltip && title) {
+        tooltip.innerText = title;
+        tooltip.classList.remove('hidden');
+      }
+    });
+    btn.addEventListener('mouseleave', () => {
+      const tooltip = document.getElementById('tv-header-tooltip');
+      if (tooltip) tooltip.classList.add('hidden');
+    });
+    btn.addEventListener('focus', () => {
+      const tooltip = document.getElementById('tv-header-tooltip');
+      const title = btn.getAttribute('title');
+      if (tooltip && title) {
+        tooltip.innerText = title;
+        tooltip.classList.remove('hidden');
+      }
+    });
+    btn.addEventListener('blur', () => {
+      const tooltip = document.getElementById('tv-header-tooltip');
+      if (tooltip) tooltip.classList.add('hidden');
+    });
+  });
+
   // Load Auto-play switch state
   const isAuto = isAutoplayEnabled();
   const mobAuto = document.getElementById('toggle-autoplay');
@@ -120,12 +148,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     } catch (e) {}
     localStorage.setItem('free_iptv_clean_start_v5', 'true');
 
-    // Cambiar a Modo B y abrir el modal de listas privadas automáticamente en el primer inicio
-    setTimeout(() => {
-      if (typeof switchAppMode === 'function') switchAppMode('B', false);
-      if (typeof openListsModal === 'function') openListsModal();
-      else if (typeof switchTab === 'function') switchTab('xtream');
-    }, 500);
+    // Primera instalación: no abrir listas automáticamente
+    // (A petición del usuario se removió la apertura automática del modal de listas)
   }
 
   // Load countries catalog for Mode A
@@ -591,7 +615,7 @@ function createChannelCardElement(ch, numberIndex, isTvLayout = false) {
           <p class="text-xs font-bold text-gray-100 truncate">${ch.name}</p>
           ${eqHtml}
         </div>
-        <span class="text-[10px] text-gray-400 truncate block">${ch.group || 'En Vivo'}</span>
+        <span class="text-[10px] text-gray-400 truncate block">${ch.subGroup || ch.group || 'En Vivo'}</span>
       </div>
     </div>
     <button class="fav-btn p-1.5 text-gray-400 hover:text-yellow-400 active:scale-125 transition flex-shrink-0" onclick="toggleFav(event, '${ch.id}')" title="Favorito">
@@ -684,13 +708,16 @@ async function loadImportedCountries(codes, forceRefresh = false) {
     if (!content) {
       try {
         const localPath = country.localPath || `data/playlists/${country.code.toLowerCase()}.m3u`;
-        const resp = await fetch(localPath);
-        if (resp.ok) content = await resp.text();
+        content = await dataService.fetchTextUniversal(localPath);
       } catch {}
     }
 
     if (content) {
       const parsed = dataService.parseM3U(content, country.name);
+      parsed.forEach(ch => {
+        ch.subGroup = ch.group;
+        ch.group = country.name;
+      });
       const validStreams = parsed.filter(ch => ch.url && (ch.url.startsWith('http://') || ch.url.startsWith('https://')));
       rawChannels.push(...validStreams);
     }
@@ -987,17 +1014,9 @@ async function loadCustomM3UUrl() {
     // Obtener contenido de la URL
     const text = await dataService.fetchTextUniversal(url);
 
-    // Validar que sea una lista M3U válida
+    // Validar que la respuesta no esté vacía
     if (!text || text.trim() === '') {
       throw new Error("La lista está vacía o no se pudo descargar.");
-    }
-
-    if (!text.includes('#EXTM3U')) {
-      throw new Error("No es una lista M3U válida (falta encabezado #EXTM3U).");
-    }
-
-    if (!text.includes('#EXTINF')) {
-      throw new Error("La lista no contiene canales válidos (falta #EXTINF).");
     }
 
     // =========================================================
@@ -1184,6 +1203,8 @@ function initXtreamSmartParser() {
 // =========================================================
 // PLAYBACK & SELECTION CONTROLLERS
 // =========================================================
+let selectedPreviewChannel = null;
+
 function playSelectedChannel(ch) {
   if (!ch) return;
 
@@ -1212,7 +1233,7 @@ function playSelectedChannel(ch) {
   // Update TV Below-Player Panel
   const tvSub = document.getElementById('tv-hud-channel-subtitle');
   if (tvSub) {
-    tvSub.innerText = `${ch.group || 'En Vivo'} • Señal HD`;
+    tvSub.innerText = `${ch.subGroup || ch.group || 'En Vivo'} • Señal HD`;
   }
 }
 
@@ -1858,6 +1879,7 @@ function playVodItemFromGrid(streamId) {
 function playVodIntelligent(vod) {
   if (!vod || !vod.url) return;
   closeVodDetailModal();
+  closeSeriesDetailModal();
   showToast("🎬 Abriendo película en reproductor externo (VLC / MX)...");
   openMediaInExternalPlayer(vod.url, vod.name || vod.title || 'Película');
 }
@@ -2188,6 +2210,7 @@ function openVodModal(vod) {
 function closeVodDetailModal() {
   const modal = document.getElementById('modal-vod-detail');
   if (modal) modal.classList.remove('show', 'active');
+  currentVodItem = null;
 }
 
 function playCurrentVod() {
@@ -2345,6 +2368,8 @@ function renderSeriesEpisodes(episodes) {
 
 async function openMediaInExternalPlayer(url, title = 'IPTV') {
   if (!url) return;
+  closeVodDetailModal();
+  closeSeriesDetailModal();
 
   // FASE 4: Verificar si hay PIN configurado para este servidor antes de abrir reproductor externo
   const server = extraerServidor(url);
@@ -2461,66 +2486,51 @@ function playEpisodeExternal(epId) {
 
 function playSeriesEpisode(ep) {
   if (!ep || !ep.url) return;
-
-  // FASE 4: Verificar PIN para contenido adulto
-  const server = extraerServidor(ep.url);
-  if (server && isPinEnabledForContent(server, 'series')) {
-    mostrarMensajePinRequerido(server, 'series', () => {
-      playSeriesEpisodeInterno(ep);
-    });
-    return;
-  }
-
-  playSeriesEpisodeInterno(ep);
-}
-
-/**
- * Reproduce episodio internamente después de verificar PIN
- */
-function playSeriesEpisodeInterno(ep) {
   closeSeriesDetailModal();
-
-  // FASE 4: Reproducir INTERNAMENTE primero (dentro de la APK)
-  const playerContainer = document.getElementById('player-container');
-  if (playerContainer) {
-    playerContainer.classList.remove('hidden');
-    playerContainer.style.display = 'flex';
-    playerContainer.style.visibility = 'visible';
-  }
-
-  const videoEl = document.getElementById('main-video');
-  if (videoEl) {
-    videoEl.style.display = 'block';
-    videoEl.style.visibility = 'visible';
-    videoEl.style.width = '100%';
-    videoEl.style.height = '100%';
-  }
-
-  const idleEl = document.getElementById('player-idle');
-  if (idleEl) idleEl.classList.add('hidden');
-
-  playerManager.play(ep).catch(() => {
-    mostrarMensajeReproductorExterno(ep.url, ep.title || ep.name || 'Episodio');
-  });
-  showToast("▶️ Reproduciendo episodio internamente...");
+  openMediaInExternalPlayer(ep.url, ep.title || ep.name || 'Episodio');
 }
 
 function closeSeriesDetailModal() {
   const modal = document.getElementById('modal-series-detail');
   if (modal) modal.classList.remove('show', 'active');
+  currentSeriesItem = null;
 }
 
 /**
- * Abre el contenido actual (VOD) en reproductor externo (VLC / MX Player)
- * como fallback cuando la reproducción interna falla o el usuario lo elige.
+ * Abre el contenido actual en reproductor externo (VLC / MX Player / BubbleUPnP)
+ * Prioriza TV en vivo si no se está visualizando explícitamente el modal VOD.
  */
 function openCurrentInExternalPlayer() {
-  if (!currentVodItem || !currentVodItem.url) {
-    showToast("⚠️ No hay ningún contenido seleccionado.");
+  const vodModal = document.getElementById('modal-vod-detail');
+  const isVodOpen = vodModal && (vodModal.classList.contains('show') || vodModal.classList.contains('active'));
+
+  // 1. Si el modal VOD está abierto y hay un VOD seleccionado
+  if (isVodOpen && currentVodItem && currentVodItem.url) {
+    const url = currentVodItem.url;
+    const name = currentVodItem.name;
+    currentVodItem = null;
+    closeVodDetailModal();
+    abrirReproductorExterno(url, name);
     return;
   }
-  closeVodDetailModal();
-  abrirReproductorExterno(currentVodItem.url, currentVodItem.name);
+
+  // 2. Si hay un canal de TV en vivo reproduciéndose actualmente, priorizarlo
+  if (window.playerManager && window.playerManager.currentChannel && window.playerManager.currentChannel.url) {
+    window.playerManager.openCurrentInExternalPlayer();
+    return;
+  }
+
+  // 3. Fallback a VOD si estuviera marcado pero sin modal abierto
+  if (currentVodItem && currentVodItem.url) {
+    const url = currentVodItem.url;
+    const name = currentVodItem.name;
+    currentVodItem = null;
+    closeVodDetailModal();
+    abrirReproductorExterno(url, name);
+    return;
+  }
+
+  showToast("⚠️ No hay ningún contenido seleccionado.");
 }
 
 /**
@@ -2931,8 +2941,7 @@ function acceptLegalDisclaimer() {
   localStorage.setItem('free_iptv_legal_accepted', 'true');
   const modal = document.getElementById('modal-legal-disclaimer');
   if (modal) modal.classList.remove('show');
-  // Ir directo a carga de listas externas (M3U/Xtream) después de aceptar términos
-  openListsModal();
+  // No abrir listas automáticamente
 }
 
 // Lists & Settings Modals
@@ -3421,6 +3430,102 @@ async function openScreenCast() {
   showToast("📺 Conecta tu Smart TV por Miracast o Chromecast en los ajustes de Android.");
 }
 
+async function pasteFromClipboard(inputId) {
+  try {
+    if (navigator.clipboard && navigator.clipboard.readText) {
+      const text = await navigator.clipboard.readText();
+      const input = document.getElementById(inputId);
+      if (input) {
+        input.value = text;
+        input.dispatchEvent(new Event('input'));
+        showToast("✨ Enlace pegado desde el portapapeles.");
+        if (inputId === 'xtream-host') {
+          handleXtreamSmartPaste(input);
+        }
+      }
+    } else {
+      const text = prompt("Pega aquí el enlace de tu lista:");
+      if (text) {
+        const input = document.getElementById(inputId);
+        if (input) {
+          input.value = text;
+          input.dispatchEvent(new Event('input'));
+          if (inputId === 'xtream-host') {
+            handleXtreamSmartPaste(input);
+          }
+        }
+      }
+    }
+  } catch (e) {
+    const text = prompt("Pega aquí el enlace de tu lista:");
+    if (text) {
+      const input = document.getElementById(inputId);
+      if (input) {
+        input.value = text;
+        input.dispatchEvent(new Event('input'));
+        if (inputId === 'xtream-host') {
+          handleXtreamSmartPaste(input);
+        }
+      }
+    }
+  }
+}
+
+function handleXtreamSmartPaste(input) {
+  const val = input.value.trim();
+  if (val.includes('get.php?') || val.includes('username=') || val.includes('password=')) {
+    const parsed = dataService.parseXtreamUrl(val);
+    if (parsed) {
+      const hostEl = document.getElementById('xtream-host') || document.getElementById('settings-xtream-host');
+      const userEl = document.getElementById('xtream-user') || document.getElementById('settings-xtream-user');
+      const passEl = document.getElementById('xtream-pass') || document.getElementById('settings-xtream-pass');
+      const portEl = document.getElementById('xtream-port');
+      if (hostEl) hostEl.value = parsed.host || parsed.server;
+      if (portEl) portEl.value = parsed.port || '';
+      if (userEl) userEl.value = parsed.username || '';
+      if (passEl) passEl.value = parsed.password || '';
+      // Also update settings fields if present
+      const sHost = document.getElementById('settings-xtream-host');
+      const sUser = document.getElementById('settings-xtream-user');
+      const sPass = document.getElementById('settings-xtream-pass');
+      if (sHost) sHost.value = parsed.host || parsed.server;
+      if (sUser) sUser.value = parsed.username || '';
+      if (sPass) sPass.value = parsed.password || '';
+      showToast("✨ ¡Datos extraídos automáticamente del enlace!");
+    }
+  }
+}
+
+async function connectSettingsXtream() {
+  const host = document.getElementById('settings-xtream-host')?.value.trim();
+  const user = document.getElementById('settings-xtream-user')?.value.trim();
+  const pass = document.getElementById('settings-xtream-pass')?.value.trim();
+  if (!host || !user || !pass) {
+    alert("Por favor completa Servidor, Usuario y Contraseña.");
+    return;
+  }
+  closeSettingsModal();
+  const mainHost = document.getElementById('xtream-host');
+  const mainUser = document.getElementById('xtream-user');
+  const mainPass = document.getElementById('xtream-pass');
+  if (mainHost) mainHost.value = host;
+  if (mainUser) mainUser.value = user;
+  if (mainPass) mainPass.value = pass;
+  await connectXtreamCodes();
+}
+
+async function loadSettingsM3U() {
+  const url = document.getElementById('settings-m3u-url')?.value.trim();
+  if (!url) {
+    alert("Ingresa una URL M3U válida.");
+    return;
+  }
+  closeSettingsModal();
+  const mainUrl = document.getElementById('custom-m3u-url');
+  if (mainUrl) mainUrl.value = url;
+  await loadCustomM3UUrl();
+}
+
 // Exportar funciones globales en window para eventos inline y pruebas unitarias
 if (typeof window !== 'undefined') {
   const globalAppFns = {
@@ -3458,7 +3563,8 @@ if (typeof window !== 'undefined') {
     guardarPinConfiguracion,
     cerrarModalPinConfiguracion,
     focusChannelSearch, toggleSortAz,
-    refreshActiveModeList, openListsModal, playVodIntelligent, openScreenCast
+    refreshActiveModeList, openListsModal, playVodIntelligent, openScreenCast,
+    pasteFromClipboard, handleXtreamSmartPaste, connectSettingsXtream, loadSettingsM3U
   };
   Object.assign(window, globalAppFns);
 }
