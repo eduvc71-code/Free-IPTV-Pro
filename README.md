@@ -18,11 +18,18 @@
 >
 > | Fichero | Contenido |
 > |---|---|
+> | `cuentas_activas_m3u.txt` | **1 línea por SERVIDOR** con el desglose de sus usuarios:<br>`[Vence: 07/12/2029 \| 1117 días restantes, (3 usuarios: 2 Activo 1 Libre) ] http://…` |
+> | `servidores_xtream_activos.txt` | Detalle por servidor y **estado de cada usuario** (`ACTIVO` / `LIBRE` / `NO_RESPUENDE`) |
 > | `<host>_<usuario>.m3u` | La lista **real** de esa cuenta con **solo los canales verificados** |
 > | `status/<host>_<usuario>.json` | Informe de vigencia (% vivo, latencias, motivos de muerte) |
-> | `servidores_xtream_activos.txt` | Estado, inicio, vencimiento y conexiones de cada cuenta |
-> | `cuentas_activas_m3u.txt` | URLs M3U de las cuentas vivas |
 > | `index.m3u` | Índice global de todo lo verificado |
+>
+> **Estados de una cuenta** (los devuelve la API del panel Xtream):
+> - `ACTIVO` → usable ahora mismo (`auth=1`, `status=Active`, sin vencer).
+> - `LIBRE` → el panel la reconoce pero no da servicio (`auth≠1`, estado distinto o vencida).
+> - `NO_RESPUENDE` → el panel no contesta (caído, bloqueado o sin red). Cuenta como `Libre` en la línea resumen para que `Activo + Libre = usuarios`.
+>
+> La línea usa la **cuenta más longeva** de cada servidor, de modo que la URL que se guarda es una que funciona.
 >
 > **Criterio de veracidad:** un canal se considera vivo **solo si el host
 > responde y entrega el formato que promete** (byte de sincronización `0x47`

@@ -21,7 +21,8 @@ try:
     from iptv_checker.checker import IPTVChecker
     from iptv_checker.utils import read_playlist_urls, create_index_m3u
     from iptv_checker.xtream_tester import (
-        check_xtream_file, format_output_block, format_m3u_line, build_m3u_url,
+        check_xtream_file, check_xtream_pool, format_output_block, format_m3u_line,
+        build_m3u_url, format_pool_line, format_pool_block,
     )
     from iptv_checker.verifier import build_ssl_context
     CHECKER_AVAILABLE = True
@@ -279,10 +280,20 @@ def test_xtream_txt_menu():
     output_format = "ts" if fmt_choice == "2" else "m3u8"
 
     print(f"\n{CYAN}[*] Validando las cuentas del panel...{RESET}")
-    active_servers = asyncio.run(check_xtream_file(filepath))
+    pool = asyncio.run(check_xtream_pool(filepath))
+
+    total_usuarios = sum(len(g['usuarios']) for g in pool.values())
+    total_activos = sum(g['activos'] for g in pool.values())
+    total_libres = sum(g['libres'] for g in pool.values())
+    sin_respuesta = sum(g['sin_respuesta'] for g in pool.values())
+    servidores_con_activos = [g for g in pool.values() if g['activos'] > 0]
 
     print(f"\n{BOLD}{'=' * 65}{RESET}")
-    print(f"{GREEN}{BOLD}CUENTAS ACTIVAS Y VÁLIDAS: {len(active_servers)}{RESET}")
+    print(f"{GREEN}{BOLD}SERVIDORES ANALIZADOS: {len(pool)}{RESET}")
+    print(f"{BOLD}  usuarios probados : {total_usuarios}{RESET}")
+    print(f"{GREEN}  activos           : {total_activos}{RESET}")
+    print(f"{YELLOW}  libres            : {total_libres}{RESET}")
+    print(f"{RED}  sin respuesta     : {sin_respuesta}{RESET}")
     print(f"{BOLD}{'=' * 65}{RESET}\n")
 
     # ---- Los 2 ficheros de siempre se escriben SIEMPRE (tambien con 0 cuentas),
@@ -292,52 +303,52 @@ def test_xtream_txt_menu():
     report_path = os.path.join(output_dir, 'servidores_xtream_activos.txt')
     m3u_list_path = os.path.join(output_dir, 'cuentas_activas_m3u.txt')
 
+    # UNA LINEA POR SERVIDOR, con el desglose de sus usuarios
     report_lines = []
     m3u_urls = []
-    for s in active_servers:
-        report_lines.append(format_output_block(s))
-        m3u_urls.append(format_m3u_line(s))
+    for grupo in sorted(pool.values(), key=lambda g: -g['activos']):
+        report_lines.append(format_pool_block(grupo))
+        if grupo['activos'] > 0:
+            m3u_urls.append(format_pool_line(grupo))
 
-    if active_servers:
-        for s in active_servers:
-            print(format_output_block(s))
+    for linea in m3u_urls:
+        print("  " + linea)
 
     with open(report_path, 'w', encoding='utf-8') as f:
-        f.write("\n".join(report_lines) + "\n")
+        f.write("\n".join(report_lines) + ("\n" if report_lines else ""))
     with open(m3u_list_path, 'w', encoding='utf-8') as f:
-        f.write("\n".join(m3u_urls) + "\n")
+        f.write("\n".join(m3u_urls) + ("\n" if m3u_urls else ""))
 
-    print(f"\n{GREEN}[✓] Estado de cuentas: {report_path}{RESET}")
-    print(f"{GREEN}[✓] URLs M3U de cuentas vivas: {m3u_list_path}{RESET}")
+    print(f"\n{GREEN}[✓] Detalle por servidor: {report_path}{RESET}")
+    print(f"{GREEN}[✓] Cuentas activas (1 linea por servidor): {m3u_list_path}{RESET}")
 
-    if not active_servers:
-        print(f"\n{RED}[!] Ninguna cuenta del archivo esta activa o es valida.{RESET}")
-        print("    (Ninguna devolvio 'auth=1' y estado 'active' en su panel)")
+    if not servidores_con_activos:
+        print(f"\n{RED}[!] Ningun servidor tiene usuarios activos.{RESET}")
         print(f"{YELLOW}    Los 2 ficheros se han escrito VACIOS (sin datos obsoletos).{RESET}")
         pause()
         return
 
     # ---- Generar las playlists REALES y VERIFICADAS de cada cuenta ----
     print(f"\n{BOLD}{'=' * 65}{RESET}")
-    print(f"{CYAN}{BOLD}GENERANDO LISTAS VERIFICADAS DE CADA CUENTA ({output_format}){RESET}")
+    print(f"{CYAN}{BOLD}GENERANDO LISTAS VERIFICADAS DE CADA SERVIDOR ({output_format}){RESET}")
     print(f"{BOLD}{'=' * 65}{RESET}\n")
 
     print(f"{YELLOW}Se descargará la lista y se verificará CADA canal (1-2 peticiones por canal).{RESET}")
     print(f"{YELLOW}Con {len(active_servers)} cuenta(s) puede tardar varios minutos.{RESET}")
-    if len(active_servers) > 1:
-        seguir = input(f"{BOLD}¿Continuar con las {len(active_servers)} cuentas? (s/n): {RESET}").strip().lower()
+    if len(servidores_con_activos) > 1:
+        seguir = input(f"{BOLD}¿Continuar con los {len(servidores_con_activos)} servidores? (s/n): {RESET}").strip().lower()
         if seguir not in ('s', 'si', 'sí', 'y', 'yes', ''):
             print(f"{YELLOW}[i] Saltando la generación de listas.{RESET}")
             pause()
             return
 
-    muestra_txt = input(f"{BOLD}¿Verificar solo los primeros N canales por cuenta? "
+    muestra_txt = input(f"{BOLD}¿Verificar solo los primeros N canales por servidor? "
                         f"(0 = todos, ej. 30): {RESET}").strip()
     muestra = int(muestra_txt) if muestra_txt.isdigit() and int(muestra_txt) > 0 else None
     if muestra:
-        print(f"{YELLOW}    Muestra: {muestra} canales por cuenta (verificacion rapida){RESET}")
+        print(f"{YELLOW}    Muestra: {muestra} canales por servidor (verificacion rapida){RESET}")
 
-    asyncio.run(generar_listas_verificadas(active_servers, output_format, muestra=muestra))
+    asyncio.run(generar_listas_verificadas(servidores_con_activos, output_format, muestra=muestra))
 
     # Indice global
     try:
@@ -352,9 +363,9 @@ def test_xtream_txt_menu():
     pause()
 
 
-async def generar_listas_verificadas(active_servers, output_format, muestra=None):
+async def generar_listas_verificadas(grupos, output_format, muestra=None):
     """
-    Para cada cuenta viva descarga su lista REAL y verifica canal a canal.
+    Para cada SERVIDOR con usuarios activos genera su lista REAL verificada.
 
     Usa el Player API del panel (solo canales EN VIVO) en lugar del M3U+,
     porque el M3U+ mezcla TV, peliculas y series (decenas de miles de
@@ -378,8 +389,11 @@ async def generar_listas_verificadas(active_servers, output_format, muestra=None
     )
 
     try:
-        for s in active_servers:
-            nombre = f"{s['server_host']}_{s['username']}"
+        for grupo in grupos:
+            s = grupo.get('mejor') or {}
+            if not s:
+                continue
+            nombre = f"{s.get('server_host')}_{s.get('username')}"
 
             # Limites reales de la cuenta -> concurrencia segura.
             # El panel cuenta CADA stream abierto como conexion, asi que solo
@@ -397,7 +411,7 @@ async def generar_listas_verificadas(active_servers, output_format, muestra=None
                     max_n = 2
                 libres = max(0, max_n - active_n)
                 concurrencia = max(1, min(PRIVATE_CONCURRENCY, libres))
-                print(f"{CYAN}[*] {nombre}: la cuenta admite {max_n} conexion(es) "
+                print(f"{CYAN}[*] {nombre}: admite {max_n} conexion(es) "
                       f"(ya activas: {active_n}) -> libres: {libres} "
                       f"-> verificando con {concurrencia} en paralelo{RESET}")
             else:
@@ -414,7 +428,7 @@ async def generar_listas_verificadas(active_servers, output_format, muestra=None
                     ch = ch[:muestra]
                 return ch
 
-            checker = IPTVChecker(nombre, s['m3u_url'], semaphore, session=session,
+            checker = IPTVChecker(nombre, s.get('m3u_url'), semaphore, session=session,
                                   insecure=False, timeout=15.0,
                                   channels_provider=provider)
             try:
