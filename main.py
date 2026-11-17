@@ -285,15 +285,8 @@ def test_xtream_txt_menu():
     print(f"{GREEN}{BOLD}CUENTAS ACTIVAS Y VÁLIDAS: {len(active_servers)}{RESET}")
     print(f"{BOLD}{'=' * 65}{RESET}\n")
 
-    if not active_servers:
-        print(f"{RED}[!] No se encontraron cuentas activas o válidas en el archivo.{RESET}")
-        print("    (Ninguna cuenta devolvió 'auth=1' y estado 'active' en su panel)")
-        pause()
-        return
-
-    for s in active_servers:
-        print(format_output_block(s))
-
+    # ---- Los 2 ficheros de siempre se escriben SIEMPRE (tambien con 0 cuentas),
+    #      para que nunca te queden datos obsoletos de una ejecucion anterior.
     output_dir = os.path.join(_base_dir(), 'output')
     os.makedirs(output_dir, exist_ok=True)
     report_path = os.path.join(output_dir, 'servidores_xtream_activos.txt')
@@ -305,6 +298,10 @@ def test_xtream_txt_menu():
         report_lines.append(format_output_block(s))
         m3u_urls.append(format_m3u_line(s))
 
+    if active_servers:
+        for s in active_servers:
+            print(format_output_block(s))
+
     with open(report_path, 'w', encoding='utf-8') as f:
         f.write("\n".join(report_lines) + "\n")
     with open(m3u_list_path, 'w', encoding='utf-8') as f:
@@ -312,6 +309,13 @@ def test_xtream_txt_menu():
 
     print(f"\n{GREEN}[✓] Estado de cuentas: {report_path}{RESET}")
     print(f"{GREEN}[✓] URLs M3U de cuentas vivas: {m3u_list_path}{RESET}")
+
+    if not active_servers:
+        print(f"\n{RED}[!] Ninguna cuenta del archivo esta activa o es valida.{RESET}")
+        print("    (Ninguna devolvio 'auth=1' y estado 'active' en su panel)")
+        print(f"{YELLOW}    Los 2 ficheros se han escrito VACIOS (sin datos obsoletos).{RESET}")
+        pause()
+        return
 
     # ---- Generar las playlists REALES y VERIFICADAS de cada cuenta ----
     print(f"\n{BOLD}{'=' * 65}{RESET}")
@@ -377,13 +381,25 @@ async def generar_listas_verificadas(active_servers, output_format, muestra=None
         for s in active_servers:
             nombre = f"{s['server_host']}_{s['username']}"
 
-            # Limites reales de la cuenta -> concurrencia segura
+            # Limites reales de la cuenta -> concurrencia segura.
+            # El panel cuenta CADA stream abierto como conexion, asi que solo
+            # podemos abrir (max_connections - active_cons) a la vez.
             max_conn, active = await get_account_limits(session, s['base_url'],
                                                          s['username'], s['password'])
+            try:
+                active_n = int(active) if active is not None else 0
+            except (TypeError, ValueError):
+                active_n = 0
             if max_conn:
-                concurrencia = max(1, min(PRIVATE_CONCURRENCY, int(max_conn)))
-                print(f"{CYAN}[*] {nombre}: la cuenta admite {max_conn} conexion(es) "
-                      f"(activas: {active}) -> verificando con {concurrencia} en paralelo{RESET}")
+                try:
+                    max_n = int(max_conn)
+                except (TypeError, ValueError):
+                    max_n = 2
+                libres = max(0, max_n - active_n)
+                concurrencia = max(1, min(PRIVATE_CONCURRENCY, libres))
+                print(f"{CYAN}[*] {nombre}: la cuenta admite {max_n} conexion(es) "
+                      f"(ya activas: {active_n}) -> libres: {libres} "
+                      f"-> verificando con {concurrencia} en paralelo{RESET}")
             else:
                 concurrencia = 2
                 print(f"{CYAN}[*] {nombre}: sin datos de limites; verificando con "
