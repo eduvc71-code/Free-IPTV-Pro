@@ -4,6 +4,14 @@ import sys
 import subprocess
 import re
 
+# Salida UTF-8 robusta: sin esto, Windows (cp1252) revienta al imprimir
+# los caracteres de la interfaz (✓, ✗, emojis) si no se arranca con chcp 65001.
+try:
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+except Exception:
+    pass
+
 # ============================================================
 # iptv_checker es una HERRAMIENTA LOCAL (no se versiona en el repo
 # ni forma parte de la APK). Si no esta presente, el menu sigue
@@ -319,7 +327,13 @@ def test_xtream_txt_menu():
             pause()
             return
 
-    asyncio.run(generar_listas_verificadas(active_servers, output_format))
+    muestra_txt = input(f"{BOLD}¿Verificar solo los primeros N canales por cuenta? "
+                        f"(0 = todos, ej. 30): {RESET}").strip()
+    muestra = int(muestra_txt) if muestra_txt.isdigit() and int(muestra_txt) > 0 else None
+    if muestra:
+        print(f"{YELLOW}    Muestra: {muestra} canales por cuenta (verificacion rapida){RESET}")
+
+    asyncio.run(generar_listas_verificadas(active_servers, output_format, muestra=muestra))
 
     # Indice global
     try:
@@ -334,17 +348,25 @@ def test_xtream_txt_menu():
     pause()
 
 
-async def generar_listas_verificadas(active_servers, output_format):
+async def generar_listas_verificadas(active_servers, output_format, muestra=None):
     """
-    Para cada cuenta viva descarga su M3U real y verifica canal a canal.
+    Para cada cuenta viva descarga su lista REAL y verifica canal a canal.
+
+    Usa el Player API del panel (solo canales EN VIVO) en lugar del M3U+,
+    porque el M3U+ mezcla TV, peliculas y series (decenas de miles de
+    entradas, casi todas VOD que la app no reproduce y que ademas devuelven
+    HTTP 503 y ralentizan la verificacion).
+
+    La concurrencia se ADAPTA a los limites de la cuenta (max_connections):
+    abrir mas streams de los permitidos hace que el panel deje de responder.
+
     Escribe output/<host>_<usuario>.m3u y output/status/<host>_<usuario>.json
     """
     import aiohttp
     from iptv_checker.utils import DEFAULT_HEADERS
+    from iptv_checker.xtream_tester import fetch_live_streams, get_account_limits
 
-    semaphore = asyncio.Semaphore(PRIVATE_CONCURRENCY)
-    connector = aiohttp.TCPConnector(ssl=build_ssl_context(insecure=False),
-                                     limit=PRIVATE_CONCURRENCY + 10)
+    connector = aiohttp.TCPConnector(ssl=build_ssl_context(insecure=False), limit=32)
     session = aiohttp.ClientSession(
         headers=DEFAULT_HEADERS,
         connector=connector,
@@ -353,11 +375,32 @@ async def generar_listas_verificadas(active_servers, output_format):
 
     try:
         for s in active_servers:
-            m3u_url = build_m3u_url(s['base_url'], s['username'], s['password'], output_format)
             nombre = f"{s['server_host']}_{s['username']}"
-            print(f"{CYAN}[*] Verificando '{nombre}'...{RESET}")
-            checker = IPTVChecker(nombre, m3u_url, semaphore, session=session,
-                                  insecure=False, timeout=12.0)
+
+            # Limites reales de la cuenta -> concurrencia segura
+            max_conn, active = await get_account_limits(session, s['base_url'],
+                                                         s['username'], s['password'])
+            if max_conn:
+                concurrencia = max(1, min(PRIVATE_CONCURRENCY, int(max_conn)))
+                print(f"{CYAN}[*] {nombre}: la cuenta admite {max_conn} conexion(es) "
+                      f"(activas: {active}) -> verificando con {concurrencia} en paralelo{RESET}")
+            else:
+                concurrencia = 2
+                print(f"{CYAN}[*] {nombre}: sin datos de limites; verificando con "
+                      f"{concurrencia} en paralelo (conservador){RESET}")
+
+            semaphore = asyncio.Semaphore(concurrencia)
+
+            async def provider(s=s):
+                ch = await fetch_live_streams(session, s['base_url'], s['username'],
+                                              s['password'], output_format)
+                if muestra:
+                    ch = ch[:muestra]
+                return ch
+
+            checker = IPTVChecker(nombre, s['m3u_url'], semaphore, session=session,
+                                  insecure=False, timeout=15.0,
+                                  channels_provider=provider)
             try:
                 await checker.run()
                 pct = checker.stats.get("vivos", 0)
